@@ -16,6 +16,7 @@ import { Drop } from 'parts/drop';
 import { ColorWheel, DropButton, TurnButton, BallCounter } from './controls';
 import { Animator } from 'ui/animator';
 import { Turnstile } from 'parts/turnstile';
+import { centerBlocks, CENTER_BLOCK_VERTICES } from './centerblock';
 import { makeKeyHandler } from 'ui/keyboard';
 
 export const enum ToolType {
@@ -51,6 +52,7 @@ export class Board {
     this._initContainers();
     this._updateDropShadows();
     this._makeControls();
+    this._layers.addChild(this._centerBlockView);
     this._bindKeyEvents();
   }
   public readonly view:PIXI.Sprite = new PIXI.Sprite();
@@ -136,6 +138,7 @@ export class Board {
   // LAYERS *******************************************************************
 
   protected _updateSpriteVisibility():void {
+    this._drawCenterBlocks();
     // get the row/column limits on sprite visibility
     const cx = this.xForColumn(this.centerColumn);
     const cy = this.yForRow(this.centerRow);
@@ -186,6 +189,30 @@ export class Board {
     }
   }
   private _visibleParts:Set<Part> = new Set();
+  private _centerBlockView:PIXI.Graphics = new PIXI.Graphics();
+  private _centerBlockDrawingSignature:string = '';
+  private _drawCenterBlocks():void {
+    const blocks = centerBlocks(this);
+    const signature = this.spacing + ':' + blocks.map(b => b.column + ',' + b.row).join(';');
+    if (signature === this._centerBlockDrawingSignature) return;
+    this._centerBlockDrawingSignature = signature;
+    const g = this._centerBlockView;
+    g.clear();
+    const scale = this.spacing / SPACING;
+    for (const block of blocks) {
+      const x = this.xForColumn(block.column), y = this.yForRow(block.row);
+      g.lineStyle(Math.max(0.5, scale), 0xc7cccf, 1);
+      g.beginFill(0xf9f9f7);
+      g.drawPolygon(CENTER_BLOCK_VERTICES.map(v => [x + v.x * scale, y + v.y * scale])
+        .reduce((a, p) => a.concat(p), []));
+      g.endFill();
+      g.lineStyle(Math.max(0.5, scale), 0xffffff, 1);
+      g.moveTo(x, y - 0.66 * this.spacing);
+      g.lineTo(x - 0.18 * this.spacing, y - 0.49 * this.spacing);
+      g.lineTo(x - 0.18 * this.spacing, y + 0.34 * this.spacing);
+    }
+    Renderer.needsUpdate();
+  }
 
   // add a part to the board's layers
   protected _addSpritesForPart(part:Part):void {

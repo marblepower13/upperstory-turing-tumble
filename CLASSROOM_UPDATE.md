@@ -3,6 +3,24 @@
 This package updates the existing marblepower13/upperstory-turing-tumble repository.
 It is an update package, not a complete standalone checkout.
 
+## Fixed center block and lever clearance
+
+- A fixed white center post separates the bottom levers. Its peaked top directs
+  center approaches toward a lever; no feet extend into the exit paths.
+- Drawing, rigid-body collision, and schematic routing share the same post outline.
+  Older standard-board saves acquire the post without a file-format change.
+- The blade tips terminate beside the post. Each lever swings down through 0.40
+  radians (about 23 degrees). At full depression, the closest blade/post separation
+  is 49.44 simulation units, compared with a marble diameter of 20 units.
+- Automatic advancement requires actual marble/blade contact and measurable
+  depression. Divider contact, proximity, falling, interception, and collection
+  cannot themselves release another marble.
+- Each marble can automatically advance the machine only once, even if it touches
+  both blades. Return marbles rebuilds the supplies and cancels lever motion silently.
+- Slow playback now schedules the same fixed physics steps used at normal speed,
+  avoiding changes to gravity/contact behavior that could leave a marble on a ramp.
+- See PHYSICS_TEST_RESULTS.md for the tested cases, method, and remaining limits.
+
 ## Approved lever and wording revision
 
 - The bottom release mechanisms now use two mirrored, slender black lever arms,
@@ -10,9 +28,9 @@ It is an update package, not a complete standalone checkout.
   and returns to rest; it does not spin through a quarter-turn.
 - The actual collision geometry is a single blade rather than the old rotor.
   Both full-length arms remain active in the physics engine, including off-center
-  contacts. Each marble can trigger a given lever only once.
-- Physical mode releases on blade contact or crossing its receiving end;
-  schematic mode uses a single tipping animation and release event.
+  contacts. Each marble can automatically trigger only one lever per run.
+- Physical mode releases only on actual marble/blade contact with lever depression;
+  schematic mode uses a blade intersection and a single tipping/release event.
 - Returning marbles cancels lever movement without releasing another marble.
 - The Interceptor tooltip no longer suggests flipping it.
 - Add marbles no longer includes generic peg placement or flip instructions.
@@ -46,7 +64,7 @@ It is an update package, not a complete standalone checkout.
 2. Open your repository on GitHub and select its Code tab (repository root).
 3. Select Add file > Upload files.
 4. Drag the contents of this update folder into the upload area: docs, src, makefile,
-   package-lock.json, and CLASSROOM_UPDATE.md. Do not drag the enclosing update folder
+   package-lock.json, CLASSROOM_UPDATE.md, and PHYSICS_TEST_RESULTS.md. Do not drag the enclosing update folder
    or the ZIP itself. Preserve the folder names so docs/index.html replaces docs/index.html.
 5. Review the file paths. Enter a commit message such as "Add classroom simulator controls"
    and commit directly to master.

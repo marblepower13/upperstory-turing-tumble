@@ -1,7 +1,7 @@
 import * as PIXI from 'pixi.js';
 
 import { Engine, Composite, World, Constraint, Body, Bodies, Vector, 
-         Grid } from 'matter-js';
+         Grid, Vertices } from 'matter-js';
 import { IBallRouter } from './router';
 import { Board } from './board';
 import { Renderer } from 'renderer';
@@ -15,6 +15,7 @@ import { SPACING } from './constants';
 import { Animator } from 'ui/animator';
 import { PartType } from 'parts/factory';
 import { Turnstile } from 'parts/turnstile';
+import { centerBlocks, CENTER_BLOCK_VERTICES } from './centerblock';
 
 export type PartBallContact = {
   ballPartBody: PartBody,
@@ -51,12 +52,12 @@ export class PhysicalBallRouter implements IBallRouter {
 
   public update(speed:number, correction:number):void {
     if (! (speed > 0)) return;
-    let iterations:number = speed * 2;
-    if (iterations < 1) {
-      this.engine.timing.timeScale = speed;
-      iterations = 1;
-    }
-    else this.engine.timing.timeScale = 1;
+    // Keep every physics step identical. Fractional playback speeds spread
+    // whole steps across frames instead of changing gravity/contact dynamics.
+    this._stepBudget += speed * 2;
+    const iterations = Math.floor(this._stepBudget + 1e-9);
+    this._stepBudget = Math.max(0, this._stepBudget - iterations);
+    this.engine.timing.timeScale = 1;
     for (let i:number = 0; i < iterations; i++) {
       this.beforeUpdate();
       Engine.update(this.engine);
@@ -65,7 +66,10 @@ export class PhysicalBallRouter implements IBallRouter {
     }
   }
 
+  private _stepBudget:number = 0;
+
   public beforeUpdate():void {
+    const blocksChanged = this._syncCenterBlocks();
     const partsChanged:boolean = 
       this.addNeighborParts(this._boardChangeCounter !== this.board.changeCounter);
     this._boardChangeCounter = this.board.changeCounter;
@@ -73,21 +77,60 @@ export class PhysicalBallRouter implements IBallRouter {
       partBody.updateBodyFromPart();
     }
     // if parts have been added or removed, update the broadphase grid
-    if ((partsChanged) && (this.engine.broadphase)) {
+    if ((partsChanged || blocksChanged) && (this.engine.broadphase)) {
       Grid.update(this.engine.broadphase, 
         Composite.allBodies(this.engine.world), this.engine, true);
     }
   }
   private _boardChangeCounter:number = -1;
+  private _centerBlockBodies:Body[] = [];
+  private _centerBlockSignature:string = '';
+  private _syncCenterBlocks():boolean {
+    const blocks = centerBlocks(this.board);
+    const signature = blocks.map(b => b.column + ',' + b.row).join(';');
+    if (signature === this._centerBlockSignature) return false;
+    this._centerBlockSignature = signature;
+    for (const body of this._centerBlockBodies) World.remove(this.engine.world, body);
+    this._centerBlockBodies = [];
+    for (const block of blocks) {
+      const vertices = CENTER_BLOCK_VERTICES.map(v => ({
+        x: block.column * SPACING + v.x, y: block.row * SPACING + v.y
+      }));
+      const center = Vertices.centre(vertices);
+      const body = Body.create({vertices: vertices, position: center, isStatic: true,
+        label: 'Fixed center block', friction: 0.02, restitution: 0.02});
+      this._centerBlockBodies.push(body);
+      World.add(this.engine.world, body);
+    }
+    return true;
+  }
+
+  private _deflectCenterContacts():void {
+    for (const pair of this.engine.pairs.collisionActive) {
+      const a = pair.bodyA.parent || pair.bodyA, b = pair.bodyB.parent || pair.bodyB;
+      const block = this._centerBlockBodies.indexOf(a) >= 0 ? a :
+        this._centerBlockBodies.indexOf(b) >= 0 ? b : null;
+      if (!block) continue;
+      const partBody = this._findPartBody(block === a ? pair.bodyB : pair.bodyA);
+      if (!partBody || !(partBody.part instanceof Ball)) continue;
+      const body = partBody.body, ball = partBody.part as Ball;
+      if (body.position.y > block.bounds.min.y + 0.55 * SPACING ||
+          Math.abs(body.velocity.x) > 0.4) continue;
+      // Resolve the perfectly balanced peak using the approach side. This
+      // applies only on actual divider contact and never releases a marble.
+      const cx = (block.bounds.min.x + block.bounds.max.x) / 2;
+      const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
+      let sign = from * SPACING < cx ? -1 : from * SPACING > cx ? 1 :
+        (ball.drop && ball.drop.isFlipped ? 1 : -1);
+      Body.setVelocity(body, {x: sign * 0.6, y: body.velocity.y});
+    }
+  }
+
 
   public afterUpdate():void {
+    this._deflectCenterContacts();
     // determine the set of balls touching each part
     const contacts:ContactMap = this._mapContacts();
-    for (const [partBody, hits] of contacts.entries()) {
-      if (partBody.part instanceof Turnstile) {
-        for (const hit of hits) partBody.part.registerPass(hit.ballPartBody.part as Ball);
-      }
-    }
     const nearby = this._mapNearby();
     // apply physics corrections
     for (const partBody of this._parts.values()) {
@@ -99,6 +142,25 @@ export class PhysicalBallRouter implements IBallRouter {
       if (part.bodyCanMove) {
         this.board.layoutPart(part, part.column, part.row);
       }
+    }
+    // Only a real marble/blade contact with measurable lever depression
+    // advances the machine. Proximity, freefall, and collection do not.
+    const actuations:Map<Ball, Turnstile[]> = new Map();
+    for (const [partBody, hits] of contacts.entries()) {
+      const lever = partBody.part;
+      if (!(lever instanceof Turnstile) || lever.rotation <= 0.025) continue;
+      for (const hit of hits) {
+        const ball = hit.ballPartBody.part as Ball;
+        if (!actuations.has(ball)) actuations.set(ball, []);
+        actuations.get(ball).push(lever);
+      }
+    }
+    for (const [ball, levers] of actuations.entries()) {
+      // The meeting tips may both touch a central marble. Use its approach
+      // side to choose one lever; never release from both for the same marble.
+      const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
+      levers.sort((a, b) => Math.abs(from - a.column) - Math.abs(from - b.column));
+      levers[0].registerPass(ball);
     }
     // combine the velocities of connected gear trains
     this.connectGears(contacts);
@@ -189,10 +251,7 @@ export class PhysicalBallRouter implements IBallRouter {
         const dc = ((ballBody.body.position.x / SPACING) - part.column) *
           (part.isFlipped ? -1 : 1);
         const dr = (ballBody.body.position.y / SPACING) - part.row;
-        if ((dc >= -0.75) && (dc <= 1.0) && (dr >= 0.2) && (dr < 0.9)) {
-          part.registerPass(ball);
-        }
-        if ((dc >= -0.75) && (dc <= 1.0) && (dr >= -0.75) && (dr < 0.8)) {
+        if ((dc >= -0.75) && (dc <= 1.3) && (dr >= -0.75) && (dr < 0.8)) {
           if (!map.has(partBody)) map.set(partBody, new Set());
           map.get(partBody).add(ballBody);
         }

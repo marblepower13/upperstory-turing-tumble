@@ -38,6 +38,9 @@ export class Ball extends Part {
   // whether the ball has been released from a drop
   public released:boolean = false;
 
+  // A marble can advance the machine once, after a bottom lever is actuated.
+  public hasActuatedLever:boolean = false;
+
   // data used by ball routers
   public lastColumn:number;
   public lastRow:number;

@@ -10,9 +10,9 @@ import { Animator } from 'ui/animator';
 // Retain the serialized Turnstile type so existing board links still load.
 // Geometry and motion now represent one pivoting release lever, not a rotor.
 export const LEVER_PIVOT_OFFSET:number = 2.6 * SPACING;
-export const LEVER_TIP:number = LEVER_PIVOT_OFFSET + (0.45 * SPACING);
+export const LEVER_TIP:number = LEVER_PIVOT_OFFSET + (0.71 * SPACING);
 export const LEVER_REST_ANGLE:number = -0.035;
-export const LEVER_TRAVEL:number = 0.34;
+export const LEVER_TRAVEL:number = 0.40;
 
 export class Turnstile extends Part {
   public get canRotate():boolean { return(true); }
@@ -95,11 +95,12 @@ export class Turnstile extends Part {
   public get hue():number { return(this._centerBall.hue); }
   public set hue(v:number) { this._centerBall.hue = v; this._updateSprites(); }
 
-  // Count each marble once as it passes the receiving end. Release timing
-  // follows the marble crossing, not how far a light impact rotates the arm.
+  // Advance once per marble after a verified lever actuation. Sharing the
+  // marker across both arms prevents a central contact releasing two marbles.
   private _passed:WeakSet<Ball> = new WeakSet();
   public registerPass(ball:Ball):void {
-    if (this._passed.has(ball)) return;
+    if (ball.hasActuatedLever || this._passed.has(ball)) return;
+    ball.hasActuatedLever = true;
     this._passed.add(ball);
     if (this.drop) this.drop.releaseBall();
   }

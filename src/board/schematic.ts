@@ -8,7 +8,8 @@ import { Ball } from 'parts/ball';
 import { PART_SIZE, BALL_RADIUS, SPACING } from './constants';
 import { Slope, Side } from 'parts/fence';
 import { GearBase } from 'parts/gearbit';
-import { Turnstile } from 'parts/turnstile';
+import { Turnstile, LEVER_REST_ANGLE, LEVER_PIVOT_OFFSET, LEVER_TIP } from 'parts/turnstile';
+import { centerBlocks } from './centerblock';
 
 type RouteMethod = (part:Part, ball:Ball) => boolean;
 
@@ -84,6 +85,39 @@ export class SchematicBallRouter implements IBallRouter {
     let method:RouteMethod;
     // confine the ball on the sides
     this.checkSides(ball);
+    // The fixed post guides a center marble over its shoulder and onto
+    // an adjacent blade. The post itself never advances the machine.
+    for (const block of centerBlocks(this.board)) {
+      const dc = ball.column - block.column, dr = ball.row - block.row;
+      if (Math.abs(dc) < 0.23 + RAD && dr + RAD >= -0.70 && dr <= 0.45 + RAD) {
+        const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
+        const sign = from < block.column ? -1 : from > block.column ? 1 :
+          (ball.drop && ball.drop.isFlipped ? 1 : -1);
+        this.approachTarget(ball, block.column + sign * (0.23 + RAD + 0.025),
+          dr < -0.50 ? block.row - 0.50 - RAD : ball.row);
+        return(true);
+      }
+    }
+    // The lever tips end beside the post between indexed pegs. Detect their physical span
+    // rather than requiring the marble to occupy the lever's own grid cell.
+    const candidates:Turnstile[] = [];
+    for (const drop of this.board.drops) for (const lever of drop.turnstiles) {
+      if (this.board.getPart(lever.column, lever.row) !== lever) continue;
+      const dc = (ball.column - lever.column) * (lever.isFlipped ? -1 : 1);
+      const along = dc + (LEVER_PIVOT_OFFSET / SPACING);
+      const surface = lever.row + (Math.sin(LEVER_REST_ANGLE) * along);
+      if (along >= -24 / SPACING && along <= (LEVER_TIP + 2) / SPACING &&
+          ball.row + RAD >= surface && ball.row <= lever.row + 0.5) {
+        candidates.push(lever);
+      }
+    }
+    if (candidates.length) {
+      const previous = this._passedLevers.get(ball);
+      const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
+      candidates.sort((a, b) => a === previous ? -1 : b === previous ? 1 :
+        Math.abs(from - a.column) - Math.abs(from - b.column));
+      return this.routeTurnstile(candidates[0], ball);
+    }
     // get the part containing the ball's center
     part = this.board.getPart(Math.round(ball.column), Math.round(ball.row));
     if ((part) && (method = this.routeMethodForPart(part)) &&
@@ -246,13 +280,16 @@ export class SchematicBallRouter implements IBallRouter {
     const lever = part as Turnstile;
     const sign = part.isFlipped ? -1 : 1;
     if (this._passedLevers.get(ball) !== lever) {
+      const along = ((ball.column - part.column) * sign) + (LEVER_PIVOT_OFFSET / SPACING);
+      const surface = part.row + (Math.sin(LEVER_REST_ANGLE) * along);
+      if (ball.row + RAD < surface) return(false);
       this._passedLevers.set(ball, lever);
       lever.registerPass(ball);
       lever.pulse(this.board.speed, false);
     }
     // Guide the marble downward through the open inner end, rather than
     // tracing the previous four-spoke rotor's circular pocket.
-    this.approachTarget(ball, part.column + (EXIT * sign), part.row + EXIT);
+    this.approachTarget(ball, ball.column, part.row + EXIT);
     return(true);
   }
 
