@@ -62,6 +62,11 @@ export class PhysicalBallRouter implements IBallRouter {
       this.beforeUpdate();
       Engine.update(this.engine);
       this.afterUpdate();
+      this.board.outputRegister.capture();
+      for (const ball of this.board.outputRegister.sequence) {
+        this.removePart(ball); this._ballNeighbors.delete(ball);
+      }
+      this.board.outputRegister.advance(1);
       GearBase.update();
     }
   }
@@ -69,6 +74,7 @@ export class PhysicalBallRouter implements IBallRouter {
   private _stepBudget:number = 0;
 
   public beforeUpdate():void {
+    this.board.outputRegister.sync();
     const blocksChanged = this._syncCenterBlocks();
     const partsChanged:boolean = 
       this.addNeighborParts(this._boardChangeCounter !== this.board.changeCounter);
@@ -320,6 +326,7 @@ export class PhysicalBallRouter implements IBallRouter {
     const removeParts:Set<Part> = new Set(this._parts.keys());
     // update for all balls on the board
     for (const ball of this.balls) {
+      if (this.board.outputRegister.has(ball)) continue;
       // get the ball's current location
       const column = Math.round(ball.column);
       const row = Math.round(ball.row);
@@ -351,7 +358,7 @@ export class PhysicalBallRouter implements IBallRouter {
       for (let c:number = -1; c <= 1; c++) {
         for (let r:number = -1; r <= 1; r++) {
           const part = this.board.getPart(column + c, row + r);
-          if (! part) continue;
+          if (! part || this.board.outputRegister.replaces(part)) continue;
           addParts.add(part);
           removeParts.delete(part);
           neighbors.add(part);

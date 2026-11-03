@@ -17,6 +17,7 @@ import { ColorWheel, DropButton, TurnButton, BallCounter } from './controls';
 import { Animator } from 'ui/animator';
 import { Turnstile } from 'parts/turnstile';
 import { centerBlocks, CENTER_BLOCK_VERTICES } from './centerblock';
+import { OutputRegister } from './outputregister';
 import { makeKeyHandler } from 'ui/keyboard';
 
 export const enum ToolType {
@@ -52,6 +53,7 @@ export class Board {
     this._initContainers();
     this._updateDropShadows();
     this._makeControls();
+    this._layers.addChildAt(this.outputRegister.view, 0);
     this._layers.addChild(this._centerBlockView);
     this._bindKeyEvents();
   }
@@ -109,6 +111,7 @@ export class Board {
   private _speed:number = 1.0;
 
   // routers to manage the positions of the balls
+  public readonly outputRegister:OutputRegister = new OutputRegister(this);
   public readonly physicalRouter:PhysicalBallRouter = new PhysicalBallRouter(this);
   public readonly schematicRouter:SchematicBallRouter = 
     new SchematicBallRouter(this);
@@ -139,6 +142,7 @@ export class Board {
 
   protected _updateSpriteVisibility():void {
     this._drawCenterBlocks();
+    this.outputRegister.draw();
     // get the row/column limits on sprite visibility
     const cx = this.xForColumn(this.centerColumn);
     const cy = this.yForRow(this.centerRow);
@@ -159,7 +163,7 @@ export class Board {
       row = this._grid[r];
       for (c = cMinGrid; c < cMaxGrid; c++) {
         part = row[c];
-        if (part) visible.add(part);
+        if (part && !this.outputRegister.replaces(part)) visible.add(part);
       }
     }
     // add balls
@@ -739,6 +743,7 @@ export class Board {
 
   // remove balls from the board
   public clearBalls():void {
+    if (this.outputRegister) this.outputRegister.clear();
     for (const ball of this.balls) this.removeBall(ball);
   }
 
@@ -935,6 +940,7 @@ export class Board {
 
   // remove a ball from the board
   public removeBall(ball:Ball) {
+    if (this.outputRegister) this.outputRegister.remove(ball);
     if (this.balls.has(ball)) {
       if (ball.drop) ball.drop.balls.delete(ball);
       this.balls.delete(ball);
@@ -1035,6 +1041,7 @@ export class Board {
 
   // return all balls to their appropriate drops
   public returnBalls():void {
+    this.outputRegister.clear();
     for (const drop of this.drops) {
       for (const lever of drop.turnstiles) lever.resetWithoutRelease();
       this.setDropBallCount(drop);
@@ -1047,6 +1054,7 @@ export class Board {
     let closest:Ball = null;
     let minDistance:number = Infinity;
     for (const ball of this.balls) {
+      if (this.outputRegister.has(ball)) continue;
       const dx:number = Math.abs(column - ball.column);
       const dy:number = Math.abs(row - ball.row);
       if ((dx > radius) || (dy > radius)) continue;

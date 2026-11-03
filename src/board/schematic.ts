@@ -40,6 +40,7 @@ export class SchematicBallRouter implements IBallRouter {
     const iterations:number = Math.ceil(speed * 8);
     for (let i:number = 0; i < iterations; i++) {
       for (const ball of this.balls) {
+        if (this.board.outputRegister.has(ball)) continue;
         ball.vx = ball.vy = 0;
         ball.minX = ball.maxX = ball.maxY = NaN;
         if (this.routeBall(ball)) {
@@ -52,12 +53,15 @@ export class SchematicBallRouter implements IBallRouter {
       this.stackBalls();
       this.moveBalls();
       this.confineBalls();
+      this.board.outputRegister.capture();
+      this.board.outputRegister.advance(0.25);
       GearBase.update();
     }
   }
 
   protected moveBalls():void {
     for (const ball of this.balls) {
+      if(this.board.outputRegister.has(ball))continue;
       const m = Math.sqrt((ball.vx * ball.vx) + (ball.vy * ball.vy));
       if (m == 0.0) continue;
       const d = Math.min(m, STEP);
@@ -68,6 +72,7 @@ export class SchematicBallRouter implements IBallRouter {
 
   protected confineBalls():void {
     for (const ball of this.balls) {
+      if(this.board.outputRegister.has(ball))continue;
       if ((! isNaN(ball.maxX)) && (ball.column > ball.maxX)) {
         ball.column = ball.maxX;
       }
@@ -83,6 +88,9 @@ export class SchematicBallRouter implements IBallRouter {
   protected routeBall(ball:Ball):boolean {
     let part:Part;
     let method:RouteMethod;
+    if(this.board.outputRegister.active && ball.row >= (centerBlocks(this.board)[0].row+1)) {
+      this.routeFreefall(ball);return true;
+    }
     // confine the ball on the sides
     this.checkSides(ball);
     // The fixed post guides a center marble over its shoulder and onto
@@ -120,6 +128,7 @@ export class SchematicBallRouter implements IBallRouter {
     }
     // get the part containing the ball's center
     part = this.board.getPart(Math.round(ball.column), Math.round(ball.row));
+    if(part && this.board.outputRegister.replaces(part))part=null;
     if ((part) && (method = this.routeMethodForPart(part)) &&
         (method.call(this, part, ball))) return(true);
     // get the leading corner of the ball's location if 
@@ -130,6 +139,7 @@ export class SchematicBallRouter implements IBallRouter {
       const r = ball.row + RAD;
       // get the part on the grid square containing the leading corner
       part = this.board.getPart(Math.round(c), Math.round(r));
+      if(part && this.board.outputRegister.replaces(part))part=null;
       if ((part) && (method = this.routeMethodForPart(part)) &&
           (method.call(this, part, ball))) return(true);
     }
@@ -316,6 +326,7 @@ export class SchematicBallRouter implements IBallRouter {
       columns[c].push(ball);
     };
     for (const ball of this.balls) {
+      if(this.board.outputRegister.has(ball))continue;
       const center = Math.round(ball.column);
       add(ball, center);
       add(ball, center - 1);

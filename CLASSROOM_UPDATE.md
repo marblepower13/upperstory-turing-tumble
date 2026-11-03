@@ -3,6 +3,27 @@
 This package updates the existing marblepower13/upperstory-turing-tumble repository.
 It is an update package, not a complete standalone checkout.
 
+## Single-file output register and page title
+
+- Added the approved longer output track with a guided inlet and space for 40
+  full-size marbles in one bottom row. Read the first marble at the right-hand
+  stop, then toward the left. The existing board and marble size are retained.
+- Marbles use the existing physics until clearing the levers and reaching the
+  visible funnel. They then follow the track in immutable entry order, with
+  full-diameter spacing on straight sections and through the rounded turn.
+  Free-body collisions are disabled for collected marbles, preventing climbing,
+  overtaking, bouncing, and rearrangement of a puzzle's completed output.
+- Collection never triggers a release. Returning/resetting clears the output
+  queue; Return marbles preserves placed components and their current states.
+- The register is derived from the standard paired locked levers. Existing saved
+  standard boards acquire it without a serializer change; legacy lower fences
+  remain in board data but are superseded in rendering and physical routing.
+- Added a centered top heading: Turing Tumble Simulator. The canvas starts below
+  the title. Removed the bottom-right classroom-edition/developer-credit block.
+  Existing attribution and contact information remain in Help.
+- Verified alternating, paired, grouped and mixed 40-marble patterns in both
+  physical and schematic modes at every nonzero playback speed. See the report.
+
 ## Outer-end containment fix
 
 - Added a small raised black rim at each lever's outer end. The rim is part of
@@ -104,7 +125,7 @@ It is an update package, not a complete standalone checkout.
 No hosting settings need to change. Nothing has been pushed or published by this package.
 GitHub commit history can restore the previous version if needed.
 
-## Verification and limits
+## Earlier verification and limits (see current test report)
 
 - TypeScript 2.7.2 compilation completed successfully.
 - JavaScript syntax checks passed.

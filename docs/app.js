@@ -2203,10 +2203,17 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                         this.beforeUpdate();
                         matter_js_2.Engine.update(this.engine);
                         this.afterUpdate();
+                        this.board.outputRegister.capture();
+                        for (const ball of this.board.outputRegister.sequence) {
+                            this.removePart(ball);
+                            this._ballNeighbors.delete(ball);
+                        }
+                        this.board.outputRegister.advance(1);
                         gearbit_2.GearBase.update();
                     }
                 }
                 beforeUpdate() {
+                    this.board.outputRegister.sync();
                     const blocksChanged = this._syncCenterBlocks();
                     const partsChanged = this.addNeighborParts(this._boardChangeCounter !== this.board.changeCounter);
                     this._boardChangeCounter = this.board.changeCounter;
@@ -2456,6 +2463,8 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                     const removeParts = new Set(this._parts.keys());
                     // update for all balls on the board
                     for (const ball of this.balls) {
+                        if (this.board.outputRegister.has(ball))
+                            continue;
                         // get the ball's current location
                         const column = Math.round(ball.column);
                         const row = Math.round(ball.row);
@@ -2487,7 +2496,7 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                         for (let c = -1; c <= 1; c++) {
                             for (let r = -1; r <= 1; r++) {
                                 const part = this.board.getPart(column + c, row + r);
-                                if (!part)
+                                if (!part || this.board.outputRegister.replaces(part))
                                     continue;
                                 addParts.add(part);
                                 removeParts.delete(part);
@@ -2697,6 +2706,8 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                     const iterations = Math.ceil(speed * 8);
                     for (let i = 0; i < iterations; i++) {
                         for (const ball of this.balls) {
+                            if (this.board.outputRegister.has(ball))
+                                continue;
                             ball.vx = ball.vy = 0;
                             ball.minX = ball.maxX = ball.maxY = NaN;
                             if (this.routeBall(ball)) {
@@ -2709,11 +2720,15 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                         this.stackBalls();
                         this.moveBalls();
                         this.confineBalls();
+                        this.board.outputRegister.capture();
+                        this.board.outputRegister.advance(0.25);
                         gearbit_3.GearBase.update();
                     }
                 }
                 moveBalls() {
                     for (const ball of this.balls) {
+                        if (this.board.outputRegister.has(ball))
+                            continue;
                         const m = Math.sqrt((ball.vx * ball.vx) + (ball.vy * ball.vy));
                         if (m == 0.0)
                             continue;
@@ -2724,6 +2739,8 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                 }
                 confineBalls() {
                     for (const ball of this.balls) {
+                        if (this.board.outputRegister.has(ball))
+                            continue;
                         if ((!isNaN(ball.maxX)) && (ball.column > ball.maxX)) {
                             ball.column = ball.maxX;
                         }
@@ -2738,6 +2755,10 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                 routeBall(ball) {
                     let part;
                     let method;
+                    if (this.board.outputRegister.active && ball.row >= (centerblock_2.centerBlocks(this.board)[0].row + 1)) {
+                        this.routeFreefall(ball);
+                        return true;
+                    }
                     // confine the ball on the sides
                     this.checkSides(ball);
                     // The fixed post guides a center marble over its shoulder and onto
@@ -2776,6 +2797,8 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                     }
                     // get the part containing the ball's center
                     part = this.board.getPart(Math.round(ball.column), Math.round(ball.row));
+                    if (part && this.board.outputRegister.replaces(part))
+                        part = null;
                     if ((part) && (method = this.routeMethodForPart(part)) &&
                         (method.call(this, part, ball)))
                         return (true);
@@ -2787,6 +2810,8 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                         const r = ball.row + RAD;
                         // get the part on the grid square containing the leading corner
                         part = this.board.getPart(Math.round(c), Math.round(r));
+                        if (part && this.board.outputRegister.replaces(part))
+                            part = null;
                         if ((part) && (method = this.routeMethodForPart(part)) &&
                             (method.call(this, part, ball)))
                             return (true);
@@ -2965,6 +2990,8 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                         columns[c].push(ball);
                     };
                     for (const ball of this.balls) {
+                        if (this.board.outputRegister.has(ball))
+                            continue;
                         const center = Math.round(ball.column);
                         add(ball, center);
                         add(ball, center - 1);
@@ -3650,9 +3677,226 @@ System.register("board/controls", ["pixi.js", "renderer", "ui/config"], function
         }
     };
 });
-System.register("ui/keyboard", [], function (exports_27, context_27) {
+System.register("board/outputregister", ["pixi.js", "board/constants", "board/centerblock", "renderer"], function (exports_27, context_27) {
     "use strict";
     var __moduleName = context_27 && context_27.id;
+    var PIXI, constants_6, centerblock_3, renderer_6, PITCH, RATE, OutputRegister;
+    return {
+        setters: [
+            function (PIXI_6) {
+                PIXI = PIXI_6;
+            },
+            function (constants_6_1) {
+                constants_6 = constants_6_1;
+            },
+            function (centerblock_3_1) {
+                centerblock_3 = centerblock_3_1;
+            },
+            function (renderer_6_1) {
+                renderer_6 = renderer_6_1;
+            }
+        ],
+        execute: function () {
+            PITCH = constants_6.BALL_RADIUS * 2 + 0.5;
+            RATE = 4;
+            // A guided, one-dimensional output channel. Free-body physics ends only below
+            // the levers. Entries then move along the visible track, constrained by their
+            // predecessor, so solver friction/bouncing cannot reorder a puzzle's output.
+            OutputRegister = class OutputRegister {
+                constructor(board) {
+                    this.board = board;
+                    this.view = new PIXI.Graphics();
+                    this.entries = [];
+                    this.held = new Set();
+                    this.path = [];
+                    this.lengths = [];
+                    this.length = 0;
+                    this.signature = '';
+                    this.drawing = '';
+                    this.column = 0;
+                    this.row = 0;
+                }
+                get active() { this.sync(); return this.path.length > 0; }
+                has(ball) { return this.held.has(ball); }
+                get sequence() { return this.entries.map(e => e.ball); }
+                get settled() {
+                    return this.entries.every((e, i) => Math.abs(e.distance -
+                        (this.length - constants_6.BALL_RADIUS - 2 - i * PITCH)) < 0.001);
+                }
+                clear() { this.entries = []; this.held.clear(); }
+                remove(ball) {
+                    if (!this.held.delete(ball))
+                        return;
+                    this.entries = this.entries.filter(e => e.ball !== ball);
+                }
+                sync() {
+                    const blocks = centerblock_3.centerBlocks(this.board);
+                    const block = blocks.length === 1 ? blocks[0] : null;
+                    const signature = block ? block.column + ':' + block.row + ':' + this.board.columnCount : '';
+                    if (signature === this.signature)
+                        return;
+                    this.signature = signature;
+                    this.clear();
+                    this.path = [];
+                    this.lengths = [];
+                    this.length = 0;
+                    if (!block) {
+                        this.view.clear();
+                        return;
+                    }
+                    this.column = block.column;
+                    this.row = block.row;
+                    const at = (c, r) => ({ x: c * constants_6.SPACING, y: r * constants_6.SPACING });
+                    const add = (p) => {
+                        if (this.path.length) {
+                            const prev = this.path[this.path.length - 1];
+                            this.length += Math.sqrt(Math.pow(p.x - prev.x, 2) + Math.pow(p.y - prev.y, 2));
+                        }
+                        this.path.push(p);
+                        this.lengths.push(this.length);
+                    };
+                    const curve = (a, control, b) => {
+                        for (let i = 1; i <= 20; i++) {
+                            const t = i / 20, u = 1 - t;
+                            add({ x: u * u * a.x + 2 * u * t * control.x + t * t * b.x,
+                                y: u * u * a.y + 2 * u * t * control.y + t * t * b.y });
+                        }
+                    };
+                    add(at(this.column, this.row + 1.6 - constants_6.BALL_RADIUS / constants_6.SPACING - 0.03));
+                    add(at(this.column, this.row + 1.85));
+                    add(at(0.45, this.row + 2.32));
+                    let a = this.path[this.path.length - 1], b = at(-0.22, this.row + 2.75);
+                    curve(a, at(-0.22, this.row + 2.32), b);
+                    a = b;
+                    b = at(0.35, this.row + 3.03);
+                    curve(a, at(-0.22, this.row + 3.03), b);
+                    add(at(this.board.columnCount - 0.65, this.row + 3.45));
+                    this.drawing = '';
+                }
+                replaces(part) {
+                    return this.path.length > 0 && part.isLocked && part.row > this.row &&
+                        (part.type === 13 /* SLOPE */ || part.type === 12 /* SIDE */);
+                }
+                capture() {
+                    this.sync();
+                    if (!this.path.length)
+                        return;
+                    for (const ball of this.board.balls) {
+                        const side = Math.min(4.1, Math.abs(ball.column - this.column));
+                        const entrance = this.row + 1.6 - constants_6.BALL_RADIUS / constants_6.SPACING - 0.03 - side * 0.95 / 4.1;
+                        if (this.held.has(ball) || ball.row < entrance ||
+                            ball.column < -0.4 || ball.column > this.board.columnCount - 0.4)
+                            continue;
+                        // Resolve any fixed-step overshoot at the visible funnel's upper face,
+                        // just as a rigid-body contact would, before entering the guided track.
+                        const origin = { x: ball.column * constants_6.SPACING, y: entrance * constants_6.SPACING };
+                        const head = this.path[0];
+                        const approach = Math.max(1, Math.sqrt(Math.pow(head.x - origin.x, 2) + Math.pow(head.y - origin.y, 2)));
+                        const previous = this.entries[this.entries.length - 1];
+                        const distance = previous ? Math.min(-approach, previous.distance - PITCH) : -approach;
+                        this.entries.push({ ball: ball, distance: distance, origin: origin, approach: approach });
+                        this.held.add(ball);
+                        ball.vx = ball.vy = 0;
+                    }
+                }
+                advance(steps) {
+                    this.sync();
+                    for (const entry of this.entries.slice()) {
+                        if (!this.board.balls.has(entry.ball))
+                            this.remove(entry.ball);
+                    }
+                    let limit = this.length - constants_6.BALL_RADIUS - 2;
+                    let previous = null;
+                    for (const entry of this.entries) {
+                        let next = Math.min(limit, entry.distance + RATE * steps);
+                        // Arc-length spacing alone is insufficient in the rounded turn.
+                        // Keep full circle clearance there as well as FIFO distance order.
+                        if (previous && next >= 0 && previous.distance >= 0) {
+                            const ahead = this.pointAt(previous.distance);
+                            const clearance = (distance) => {
+                                const p = this.pointAt(distance);
+                                return Math.sqrt(Math.pow(p.x - ahead.x, 2) + Math.pow(p.y - ahead.y, 2));
+                            };
+                            if (clearance(next) < PITCH - 0.000001) {
+                                let low = Math.max(0, Math.min(entry.distance, next)), high = next;
+                                for (let i = 0; i < 16; i++) {
+                                    const mid = (low + high) / 2;
+                                    if (clearance(mid) >= PITCH)
+                                        low = mid;
+                                    else
+                                        high = mid;
+                                }
+                                next = low;
+                            }
+                        }
+                        entry.distance = next;
+                        limit = entry.distance - PITCH;
+                        previous = entry;
+                        const point = entry.distance < 0 ? this.approachPoint(entry) : this.pointAt(entry.distance);
+                        const ball = entry.ball;
+                        if (Math.abs(ball.column * constants_6.SPACING - point.x) + Math.abs(ball.row * constants_6.SPACING - point.y) > 0.00001) {
+                            this.board.layoutPart(ball, point.x / constants_6.SPACING, point.y / constants_6.SPACING);
+                            renderer_6.Renderer.needsUpdate();
+                        }
+                        ball.vx = ball.vy = 0;
+                    }
+                }
+                approachPoint(entry) {
+                    const t = Math.max(0, Math.min(1, 1 + entry.distance / entry.approach));
+                    const head = this.path[0];
+                    return { x: entry.origin.x + (head.x - entry.origin.x) * t,
+                        y: entry.origin.y + (head.y - entry.origin.y) * t };
+                }
+                pointAt(distance) {
+                    for (let i = 1; i < this.path.length; i++)
+                        if (distance <= this.lengths[i]) {
+                            const a = this.path[i - 1], b = this.path[i];
+                            const t = (distance - this.lengths[i - 1]) / (this.lengths[i] - this.lengths[i - 1]);
+                            return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+                        }
+                    return this.path[this.path.length - 1];
+                }
+                draw() {
+                    this.sync();
+                    const signature = this.signature + ':' + this.board.spacing;
+                    if (signature === this.drawing)
+                        return;
+                    this.drawing = signature;
+                    const g = this.view;
+                    g.clear();
+                    if (!this.path.length)
+                        return;
+                    const scale = this.board.spacing / constants_6.SPACING;
+                    const point = (p) => ({ x: this.board.xForColumn(p.x / constants_6.SPACING), y: this.board.yForRow(p.y / constants_6.SPACING) });
+                    const stroke = (points, width, color) => {
+                        g.lineStyle(width * scale, color, 1);
+                        points.forEach((p, i) => { const v = point(p); if (i)
+                            g.lineTo(v.x, v.y);
+                        else
+                            g.moveTo(v.x, v.y); });
+                    };
+                    // Merge below both levers; no collector rail crosses a lever's sweep.
+                    const head = this.path[0];
+                    for (const sign of [-1, 1]) {
+                        const mouth = [{ x: (this.column + sign * 4.1) * constants_6.SPACING, y: (this.row + 0.65) * constants_6.SPACING },
+                            { x: head.x + sign * 0.20 * constants_6.SPACING, y: (this.row + 1.6) * constants_6.SPACING }];
+                        stroke(mouth, 5, 0xb5bec3);
+                        stroke(mouth, 2, 0xfafafa);
+                    }
+                    stroke(this.path, 32, 0xb5bec3);
+                    stroke(this.path, 26, 0xffffff);
+                    const end = this.path[this.path.length - 1];
+                    stroke([{ x: end.x, y: end.y - 16 }, { x: end.x, y: end.y + 16 }], 5, 0x7d8d96);
+                    renderer_6.Renderer.needsUpdate();
+                }
+            };
+            exports_27("OutputRegister", OutputRegister);
+        }
+    };
+});
+System.register("ui/keyboard", [], function (exports_28, context_28) {
+    "use strict";
+    var __moduleName = context_28 && context_28.id;
     function makeKeyHandler(key) {
         const handler = {
             key: key,
@@ -3682,17 +3926,17 @@ System.register("ui/keyboard", [], function (exports_27, context_27) {
         window.addEventListener('keyup', handler.upHandler.bind(handler), false);
         return (handler);
     }
-    exports_27("makeKeyHandler", makeKeyHandler);
+    exports_28("makeKeyHandler", makeKeyHandler);
     return {
         setters: [],
         execute: function () {
         }
     };
 });
-System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", "ui/config", "util/disjoint", "renderer", "parts/ball", "board/constants", "board/physics", "board/schematic", "parts/drop", "board/controls", "ui/animator", "parts/turnstile", "board/centerblock", "ui/keyboard"], function (exports_28, context_28) {
+System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", "ui/config", "util/disjoint", "renderer", "parts/ball", "board/constants", "board/physics", "board/schematic", "parts/drop", "board/controls", "ui/animator", "parts/turnstile", "board/centerblock", "board/outputregister", "ui/keyboard"], function (exports_29, context_29) {
     "use strict";
-    var __moduleName = context_28 && context_28.id;
-    var filter, fence_4, gearbit_4, config_3, disjoint_1, renderer_6, ball_5, constants_6, physics_1, schematic_1, drop_4, controls_1, animator_4, turnstile_6, centerblock_3, keyboard_1, SPACING_FACTOR, Board;
+    var __moduleName = context_29 && context_29.id;
+    var filter, fence_4, gearbit_4, config_3, disjoint_1, renderer_7, ball_5, constants_7, physics_1, schematic_1, drop_4, controls_1, animator_4, turnstile_6, centerblock_4, outputregister_1, keyboard_1, SPACING_FACTOR, Board;
     return {
         setters: [
             function (filter_1) {
@@ -3710,14 +3954,14 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
             function (disjoint_1_1) {
                 disjoint_1 = disjoint_1_1;
             },
-            function (renderer_6_1) {
-                renderer_6 = renderer_6_1;
+            function (renderer_7_1) {
+                renderer_7 = renderer_7_1;
             },
             function (ball_5_1) {
                 ball_5 = ball_5_1;
             },
-            function (constants_6_1) {
-                constants_6 = constants_6_1;
+            function (constants_7_1) {
+                constants_7 = constants_7_1;
             },
             function (physics_1_1) {
                 physics_1 = physics_1_1;
@@ -3737,15 +3981,18 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
             function (turnstile_6_1) {
                 turnstile_6 = turnstile_6_1;
             },
-            function (centerblock_3_1) {
-                centerblock_3 = centerblock_3_1;
+            function (centerblock_4_1) {
+                centerblock_4 = centerblock_4_1;
+            },
+            function (outputregister_1_1) {
+                outputregister_1 = outputregister_1_1;
             },
             function (keyboard_1_1) {
                 keyboard_1 = keyboard_1_1;
             }
         ],
         execute: function () {
-            exports_28("SPACING_FACTOR", SPACING_FACTOR = 1.0625);
+            exports_29("SPACING_FACTOR", SPACING_FACTOR = 1.0625);
             Board = class Board {
                 constructor(partFactory) {
                     this.partFactory = partFactory;
@@ -3760,6 +4007,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     this._schematic = false;
                     this._speed = 1.0;
                     // routers to manage the positions of the balls
+                    this.outputRegister = new outputregister_1.OutputRegister(this);
                     this.physicalRouter = new physics_1.PhysicalBallRouter(this);
                     this.schematicRouter = new schematic_1.SchematicBallRouter(this);
                     this._counter = 0;
@@ -3797,6 +4045,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     this._initContainers();
                     this._updateDropShadows();
                     this._makeControls();
+                    this._layers.addChildAt(this.outputRegister.view, 0);
                     this._layers.addChild(this._centerBlockView);
                     this._bindKeyEvents();
                 }
@@ -3863,6 +4112,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 // LAYERS *******************************************************************
                 _updateSpriteVisibility() {
                     this._drawCenterBlocks();
+                    this.outputRegister.draw();
                     // get the row/column limits on sprite visibility
                     const cx = this.xForColumn(this.centerColumn);
                     const cy = this.yForRow(this.centerRow);
@@ -3883,7 +4133,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         row = this._grid[r];
                         for (c = cMinGrid; c < cMaxGrid; c++) {
                             part = row[c];
-                            if (part)
+                            if (part && !this.outputRegister.replaces(part))
                                 visible.add(part);
                         }
                     }
@@ -3917,19 +4167,19 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     }
                 }
                 _drawCenterBlocks() {
-                    const blocks = centerblock_3.centerBlocks(this);
+                    const blocks = centerblock_4.centerBlocks(this);
                     const signature = this.spacing + ':' + blocks.map(b => b.column + ',' + b.row).join(';');
                     if (signature === this._centerBlockDrawingSignature)
                         return;
                     this._centerBlockDrawingSignature = signature;
                     const g = this._centerBlockView;
                     g.clear();
-                    const scale = this.spacing / constants_6.SPACING;
+                    const scale = this.spacing / constants_7.SPACING;
                     for (const block of blocks) {
                         const x = this.xForColumn(block.column), y = this.yForRow(block.row);
                         g.lineStyle(Math.max(0.5, scale), 0xc7cccf, 1);
                         g.beginFill(0xf9f9f7);
-                        g.drawPolygon(centerblock_3.CENTER_BLOCK_VERTICES.map(v => [x + v.x * scale, y + v.y * scale])
+                        g.drawPolygon(centerblock_4.CENTER_BLOCK_VERTICES.map(v => [x + v.x * scale, y + v.y * scale])
                             .reduce((a, p) => a.concat(p), []));
                         g.endFill();
                         g.lineStyle(Math.max(0.5, scale), 0xffffff, 1);
@@ -3937,7 +4187,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         g.lineTo(x - 0.18 * this.spacing, y - 0.49 * this.spacing);
                         g.lineTo(x - 0.18 * this.spacing, y + 0.34 * this.spacing);
                     }
-                    renderer_6.Renderer.needsUpdate();
+                    renderer_7.Renderer.needsUpdate();
                 }
                 // add a part to the board's layers
                 _addSpritesForPart(part) {
@@ -3960,7 +4210,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                             }
                         }
                     }
-                    renderer_6.Renderer.needsUpdate();
+                    renderer_7.Renderer.needsUpdate();
                 }
                 // remove a part from the board's layers
                 _removeSpritesForPart(part) {
@@ -3974,7 +4224,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         if (sprite.parent === container)
                             container.removeChild(sprite);
                     }
-                    renderer_6.Renderer.needsUpdate();
+                    renderer_7.Renderer.needsUpdate();
                 }
                 _initContainers() {
                     this._setContainer(0 /* BACK */, false);
@@ -4067,7 +4317,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         }
                     }
                     showContainer(8 /* CONTROL */, showControls);
-                    renderer_6.Renderer.needsUpdate();
+                    renderer_7.Renderer.needsUpdate();
                 }
                 // controls
                 _makeControls() {
@@ -4115,7 +4365,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     g.drawRect(x0, y0, x1 - x0, y1 - y0);
                     if (active)
                         g.endFill();
-                    renderer_6.Renderer.needsUpdate();
+                    renderer_7.Renderer.needsUpdate();
                 }
                 // LAYOUT *******************************************************************
                 // change the size to draw parts at
@@ -4187,7 +4437,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         Math.round((this.height / 2) - this.yForRow(this.centerRow));
                     this._updateFilterAreas();
                     this._spriteChangeCounter++;
-                    renderer_6.Renderer.needsUpdate();
+                    renderer_7.Renderer.needsUpdate();
                 }
                 // do layout for one part at the given location
                 layoutPart(part, column, row) {
@@ -4445,6 +4695,8 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 }
                 // remove balls from the board
                 clearBalls() {
+                    if (this.outputRegister)
+                        this.outputRegister.clear();
                     for (const ball of this.balls)
                         this.removeBall(ball);
                 }
@@ -4643,6 +4895,8 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 }
                 // remove a ball from the board
                 removeBall(ball) {
+                    if (this.outputRegister)
+                        this.outputRegister.remove(ball);
                     if (this.balls.has(ball)) {
                         if (ball.drop)
                             ball.drop.balls.delete(ball);
@@ -4650,7 +4904,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         // update the ball counter
                         if (this._ballCounter.visible)
                             this._ballCounter.update();
-                        renderer_6.Renderer.needsUpdate();
+                        renderer_7.Renderer.needsUpdate();
                         this.onChange();
                     }
                 }
@@ -4664,7 +4918,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         }
                     }
                     // get the fraction of a grid unit a ball's radius takes up
-                    const radius = constants_6.BALL_RADIUS / constants_6.SPACING;
+                    const radius = constants_7.BALL_RADIUS / constants_7.SPACING;
                     let c = drop.column;
                     let r = drop.row;
                     // if the highest ball is on or above the drop, add the new ball above it
@@ -4745,6 +4999,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 }
                 // return all balls to their appropriate drops
                 returnBalls() {
+                    this.outputRegister.clear();
                     for (const drop of this.drops) {
                         for (const lever of drop.turnstiles)
                             lever.resetWithoutRelease();
@@ -4753,10 +5008,12 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 }
                 // get the ball under the given point in fractional column/row units
                 ballUnder(column, row) {
-                    const radius = (constants_6.BALL_RADIUS / constants_6.SPACING) * 1.2;
+                    const radius = (constants_7.BALL_RADIUS / constants_7.SPACING) * 1.2;
                     let closest = null;
                     let minDistance = Infinity;
                     for (const ball of this.balls) {
+                        if (this.outputRegister.has(ball))
+                            continue;
                         const dx = Math.abs(column - ball.column);
                         const dy = Math.abs(row - ball.row);
                         if ((dx > radius) || (dy > radius))
@@ -5432,24 +5689,24 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     }
                 }
             };
-            exports_28("Board", Board);
+            exports_29("Board", Board);
         }
     };
 });
-System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exports_29, context_29) {
+System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exports_30, context_30) {
     "use strict";
-    var __moduleName = context_29 && context_29.id;
-    var PIXI, config_4, renderer_7, Button, PartButton, SpriteButton, ButtonBar;
+    var __moduleName = context_30 && context_30.id;
+    var PIXI, config_4, renderer_8, Button, PartButton, SpriteButton, ButtonBar;
     return {
         setters: [
-            function (PIXI_6) {
-                PIXI = PIXI_6;
+            function (PIXI_7) {
+                PIXI = PIXI_7;
             },
             function (config_4_1) {
                 config_4 = config_4_1;
             },
-            function (renderer_7_1) {
-                renderer_7 = renderer_7_1;
+            function (renderer_8_1) {
+                renderer_8 = renderer_8_1;
             }
         ],
         execute: function () {
@@ -5476,7 +5733,7 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                         return;
                     this._size = v;
                     this.onSizeChanged();
-                    renderer_7.Renderer.needsUpdate();
+                    renderer_8.Renderer.needsUpdate();
                 }
                 get isToggled() { return (this._isToggled); }
                 set isToggled(v) {
@@ -5532,7 +5789,7 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                     }
                     this._background.alpha = alpha;
                     this.alpha = this.isEnabled ? 1.0 : 0.25 /* BUTTON_DISABLED */;
-                    renderer_7.Renderer.needsUpdate();
+                    renderer_8.Renderer.needsUpdate();
                 }
                 _drawDecorations() {
                     const radius = 8; // pixels
@@ -5547,10 +5804,10 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                         this._background.drawRoundedRect(-hs, -hs, s, s, radius);
                         this._background.endFill();
                     }
-                    renderer_7.Renderer.needsUpdate();
+                    renderer_8.Renderer.needsUpdate();
                 }
             };
-            exports_29("Button", Button);
+            exports_30("Button", Button);
             PartButton = class PartButton extends Button {
                 constructor(part) {
                     super();
@@ -5587,7 +5844,7 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                         this.addChild(this._normalView);
                         this.removeChild(this._schematicView);
                     }
-                    renderer_7.Renderer.needsUpdate();
+                    renderer_8.Renderer.needsUpdate();
                 }
                 onSizeChanged() {
                     super.onSizeChanged();
@@ -5595,7 +5852,7 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                         this.part.size = Math.floor(this.size * 0.75);
                 }
             };
-            exports_29("PartButton", PartButton);
+            exports_30("PartButton", PartButton);
             SpriteButton = class SpriteButton extends Button {
                 constructor(sprite) {
                     super();
@@ -5615,7 +5872,7 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                     }
                 }
             };
-            exports_29("SpriteButton", SpriteButton);
+            exports_30("SpriteButton", SpriteButton);
             ButtonBar = class ButtonBar extends PIXI.Container {
                 constructor() {
                     super();
@@ -5714,7 +5971,7 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                     this._background.beginFill(16777215 /* BACKGROUND */, 1.0);
                     this._background.drawRect(0, 0, this.width, this.height);
                     this._background.endFill();
-                    renderer_7.Renderer.needsUpdate();
+                    renderer_8.Renderer.needsUpdate();
                 }
                 // get the height taken up by all the buttons at the given width
                 _contentHeightForWidth(w) {
@@ -5722,24 +5979,24 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                     return (m + ((w - m) * this._buttons.length));
                 }
             };
-            exports_29("ButtonBar", ButtonBar);
+            exports_30("ButtonBar", ButtonBar);
         }
     };
 });
-System.register("ui/toolbar", ["pixi.js", "ui/button", "renderer"], function (exports_30, context_30) {
+System.register("ui/toolbar", ["pixi.js", "ui/button", "renderer"], function (exports_31, context_31) {
     "use strict";
-    var __moduleName = context_30 && context_30.id;
-    var PIXI, button_1, renderer_8, Toolbar;
+    var __moduleName = context_31 && context_31.id;
+    var PIXI, button_1, renderer_9, Toolbar;
     return {
         setters: [
-            function (PIXI_7) {
-                PIXI = PIXI_7;
+            function (PIXI_8) {
+                PIXI = PIXI_8;
             },
             function (button_1_1) {
                 button_1 = button_1_1;
             },
-            function (renderer_8_1) {
-                renderer_8 = renderer_8_1;
+            function (renderer_9_1) {
+                renderer_9 = renderer_9_1;
             }
         ],
         execute: function () {
@@ -5801,16 +6058,16 @@ System.register("ui/toolbar", ["pixi.js", "ui/button", "renderer"], function (ex
                             button.schematic = this.board.schematicView;
                         }
                     }
-                    renderer_8.Renderer.needsUpdate();
+                    renderer_9.Renderer.needsUpdate();
                 }
             };
-            exports_30("Toolbar", Toolbar);
+            exports_31("Toolbar", Toolbar);
         }
     };
 });
-System.register("board/builder", ["parts/fence"], function (exports_31, context_31) {
+System.register("board/builder", ["parts/fence"], function (exports_32, context_32) {
     "use strict";
-    var __moduleName = context_31 && context_31.id;
+    var __moduleName = context_32 && context_32.id;
     var fence_5, BoardBuilder;
     return {
         setters: [
@@ -5936,18 +6193,18 @@ System.register("board/builder", ["parts/fence"], function (exports_31, context_
                     board.bulkUpdate = false;
                 }
             };
-            exports_31("BoardBuilder", BoardBuilder);
+            exports_32("BoardBuilder", BoardBuilder);
         }
     };
 });
-System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/config", "renderer", "board/serializer", "ui/animator", "board/builder"], function (exports_32, context_32) {
+System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/config", "renderer", "board/serializer", "ui/animator", "board/builder"], function (exports_33, context_33) {
     "use strict";
-    var __moduleName = context_32 && context_32.id;
-    var PIXI, board_2, button_2, config_5, renderer_9, serializer_1, animator_5, builder_1, Actionbar, BoardDrawer;
+    var __moduleName = context_33 && context_33.id;
+    var PIXI, board_2, button_2, config_5, renderer_10, serializer_1, animator_5, builder_1, Actionbar, BoardDrawer;
     return {
         setters: [
-            function (PIXI_8) {
-                PIXI = PIXI_8;
+            function (PIXI_9) {
+                PIXI = PIXI_9;
             },
             function (board_2_1) {
                 board_2 = board_2_1;
@@ -5958,8 +6215,8 @@ System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/conf
             function (config_5_1) {
                 config_5 = config_5_1;
             },
-            function (renderer_9_1) {
-                renderer_9 = renderer_9_1;
+            function (renderer_10_1) {
+                renderer_10 = renderer_10_1;
             },
             function (serializer_1_1) {
                 serializer_1 = serializer_1_1;
@@ -6095,7 +6352,7 @@ System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/conf
                             button.isToggled = this._drawer.visible;
                         }
                     }
-                    renderer_9.Renderer.needsUpdate();
+                    renderer_10.Renderer.needsUpdate();
                 }
                 // SPEED CONTROL ************************************************************
                 get canGoFaster() {
@@ -6181,7 +6438,7 @@ System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/conf
                     }
                 }
             };
-            exports_32("Actionbar", Actionbar);
+            exports_33("Actionbar", Actionbar);
             BoardDrawer = class BoardDrawer extends button_2.ButtonBar {
                 constructor(board) {
                     super();
@@ -6244,18 +6501,18 @@ System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/conf
                 }
                 updateToggled() { }
             };
-            exports_32("BoardDrawer", BoardDrawer);
+            exports_33("BoardDrawer", BoardDrawer);
         }
     };
 });
-System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar", "ui/actionbar", "renderer", "ui/animator", "ui/keyboard", "parts/gearbit"], function (exports_33, context_33) {
+System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar", "ui/actionbar", "renderer", "ui/animator", "ui/keyboard", "parts/gearbit"], function (exports_34, context_34) {
     "use strict";
-    var __moduleName = context_33 && context_33.id;
-    var PIXI, board_3, factory_2, toolbar_1, actionbar_1, renderer_10, animator_6, keyboard_2, gearbit_5, SimulatorApp;
+    var __moduleName = context_34 && context_34.id;
+    var PIXI, board_3, factory_2, toolbar_1, actionbar_1, renderer_11, animator_6, keyboard_2, gearbit_5, SimulatorApp;
     return {
         setters: [
-            function (PIXI_9) {
-                PIXI = PIXI_9;
+            function (PIXI_10) {
+                PIXI = PIXI_10;
             },
             function (board_3_1) {
                 board_3 = board_3_1;
@@ -6269,8 +6526,8 @@ System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar",
             function (actionbar_1_1) {
                 actionbar_1 = actionbar_1_1;
             },
-            function (renderer_10_1) {
-                renderer_10 = renderer_10_1;
+            function (renderer_11_1) {
+                renderer_11 = renderer_11_1;
             },
             function (animator_6_1) {
                 animator_6 = animator_6_1;
@@ -6307,7 +6564,7 @@ System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar",
                     animator_6.Animator.current.update(delta);
                     this.board.update(delta);
                     gearbit_5.GearBase.update();
-                    renderer_10.Renderer.render();
+                    renderer_11.Renderer.render();
                 }
                 get width() { return (this._width); }
                 set width(v) {
@@ -6330,7 +6587,7 @@ System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar",
                         this.board.view.x = 0;
                         this.board.width = this.width;
                         this.board.height = this.height;
-                        renderer_10.Renderer.needsUpdate();
+                        renderer_11.Renderer.needsUpdate();
                         return;
                     }
                     this.toolbar.height = this.height;
@@ -6339,7 +6596,7 @@ System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar",
                     this.board.view.x = this.toolbar.width;
                     this.board.width = Math.max(0, this.width - (this.toolbar.width + this.actionbar.width));
                     this.board.height = this.height;
-                    renderer_10.Renderer.needsUpdate();
+                    renderer_11.Renderer.needsUpdate();
                 }
                 _addKeyHandlers() {
                     keyboard_2.makeKeyHandler('w').press = () => {
@@ -6348,24 +6605,24 @@ System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar",
                     };
                 }
             };
-            exports_33("SimulatorApp", SimulatorApp);
+            exports_34("SimulatorApp", SimulatorApp);
         }
     };
 });
-System.register("index", ["pixi.js", "app", "renderer", "board/builder", "board/serializer"], function (exports_34, context_34) {
+System.register("index", ["pixi.js", "app", "renderer", "board/builder", "board/serializer"], function (exports_35, context_35) {
     "use strict";
-    var __moduleName = context_34 && context_34.id;
-    var PIXI, app_1, renderer_11, builder_2, serializer_2, sim, container, resizeApp, loader;
+    var __moduleName = context_35 && context_35.id;
+    var PIXI, app_1, renderer_12, builder_2, serializer_2, sim, container, resizeApp, loader;
     return {
         setters: [
-            function (PIXI_10) {
-                PIXI = PIXI_10;
+            function (PIXI_11) {
+                PIXI = PIXI_11;
             },
             function (app_1_1) {
                 app_1 = app_1_1;
             },
-            function (renderer_11_1) {
-                renderer_11 = renderer_11_1;
+            function (renderer_12_1) {
+                renderer_12 = renderer_12_1;
             },
             function (builder_2_1) {
                 builder_2 = builder_2_1;
@@ -6380,7 +6637,7 @@ System.register("index", ["pixi.js", "app", "renderer", "board/builder", "board/
             container.style.overflow = 'hidden';
             resizeApp = () => {
                 const r = container.getBoundingClientRect();
-                renderer_11.Renderer.instance.resize(r.width, r.height);
+                renderer_12.Renderer.instance.resize(r.width, r.height);
                 if (sim) {
                     sim.width = r.width;
                     sim.height = r.height;
@@ -6398,9 +6655,9 @@ System.register("index", ["pixi.js", "app", "renderer", "board/builder", "board/
                     // update toolbars based on restored state
                     sim.toolbar.updateToggled();
                     sim.actionbar.updateToggled();
-                    sim.width = renderer_11.Renderer.instance.width;
-                    sim.height = renderer_11.Renderer.instance.height;
-                    renderer_11.Renderer.stage.addChild(sim);
+                    sim.width = renderer_12.Renderer.instance.width;
+                    sim.height = renderer_12.Renderer.instance.height;
+                    renderer_12.Renderer.stage.addChild(sim);
                     // set up the standard board if there was no state
                     if (!restored) {
                         builder_2.BoardBuilder.initStandardBoard(sim.board);
@@ -6415,7 +6672,7 @@ System.register("index", ["pixi.js", "app", "renderer", "board/builder", "board/
                         setTimeout(() => loading.style.display = 'none', 1000);
                     }
                     // attach the stage to the document and fade it in
-                    container.appendChild(renderer_11.Renderer.instance.view);
+                    container.appendChild(renderer_12.Renderer.instance.view);
                     container.style.opacity = '1';
                     window.dispatchEvent(new CustomEvent('simulator-ready', { detail: { sim, BoardBuilder: builder_2.BoardBuilder } }));
                     // start the game loop
