@@ -737,7 +737,7 @@ System.register("parts/turnstile", ["pixi.js", "parts/part", "parts/ball", "boar
             exports_14("LEVER_PIVOT_OFFSET", LEVER_PIVOT_OFFSET = 2.6 * constants_1.SPACING);
             exports_14("LEVER_TIP", LEVER_TIP = LEVER_PIVOT_OFFSET + (0.71 * constants_1.SPACING));
             exports_14("LEVER_REST_ANGLE", LEVER_REST_ANGLE = -0.035);
-            exports_14("LEVER_TRAVEL", LEVER_TRAVEL = 0.40);
+            exports_14("LEVER_TRAVEL", LEVER_TRAVEL = 0.28);
             Turnstile = class Turnstile extends part_10.Part {
                 constructor() {
                     super(...arguments);
@@ -1924,6 +1924,13 @@ System.register("parts/partbody", ["matter-js", "parts/factory", "parts/partvert
                             matter_js_1.Body.setVelocity(body, { x: body.velocity.x, y: 0 });
                         }
                     }
+                    else if (this._part instanceof turnstile_2.Turnstile) {
+                        const local = matter_js_1.Vector.rotate(matter_js_1.Vector.sub(body.position, this._body.position), -this._body.angle);
+                        if (local.y < 0) {
+                            sign = this._part.isFlipped ? -1 : 1;
+                            mag = 0.5;
+                        }
+                    }
                     else if (this._part.type == 7 /* GEARBIT */) {
                         if (this._part.rotation < 0.25)
                             sign = 1;
@@ -2322,12 +2329,22 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                 }
                 _mapContacts() {
                     const contacts = new Map();
-                    for (const pair of this.engine.pairs.collisionActive) {
+                    // Matter separates first-touch contacts from continuing contacts. A quick
+                    // strike can exist only in collisionStart; omitting it lets the spring
+                    // reset an outer blade before that strike is handled.
+                    const continuing = this.engine.pairs.collisionActive;
+                    const starting = this.engine.pairs.collisionStart;
+                    for (const pair of continuing.concat(starting)) {
                         const partA = this._findPartBody(pair.bodyA);
                         if (!partA)
                             continue;
                         const partB = this._findPartBody(pair.bodyB);
                         if (!partB)
+                            continue;
+                        // Preserve existing contact behavior for other components.
+                        if (starting.indexOf(pair) >= 0 &&
+                            !(partA.part instanceof turnstile_4.Turnstile) &&
+                            !(partB.part instanceof turnstile_4.Turnstile))
                             continue;
                         if ((partA.type == 9 /* BALL */) && (partB.type != 9 /* BALL */)) {
                             if (!contacts.has(partB))

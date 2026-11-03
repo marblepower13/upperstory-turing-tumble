@@ -404,6 +404,17 @@ export class PartBody {
         Body.setVelocity(body, { x: body.velocity.x, y: 0 });
       }
     }
+    // A marble resting on the upper face rolls toward the lowered inner
+    // tip. Use the same small incline assist as ramps so solver friction
+    // cannot strand it near the pivot. Underside contacts get no assist.
+    else if (this._part instanceof Turnstile) {
+      const local = Vector.rotate(Vector.sub(body.position, this._body.position),
+        -this._body.angle);
+      if (local.y < 0) {
+        sign = this._part.isFlipped ? -1 : 1;
+        mag = 0.5;
+      }
+    }
     // gearbits are basically like switchable ramps
     else if (this._part.type == PartType.GEARBIT) {
       if (this._part.rotation < 0.25) sign = 1;

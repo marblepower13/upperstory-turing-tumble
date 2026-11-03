@@ -18,16 +18,38 @@ the simulator's actual code. Rendering was stubbed. Interface checks separately
 used a DOM emulation. TypeScript compilation and JavaScript syntax checks passed.
 
 Compiled docs/app.js SHA-256:
-1239b529687b74ec70ab13718834dc28e9960bae1c510cb2fafe8638db02c3a6
+f6e271f4771185502a3ac957cc295513d66a44cbb118db462dc1e5d9babfd89e
+
+## Reproduced brief-contact failure
+
+Before this fix, isolated drops at columns 4.1 and 7.9, from row 12.35 with
+initial downward velocity 8, passed their respective blades without depression
+or release. These are two reproducible instances of the reported failure type;
+the exact sequence observed in the live browser was not reproduced.
+
+The handler previously considered continuing collisions but omitted first-touch
+collisions. Both kinds now count for lever handling; other components' handling
+is unchanged. Release still requires actual blade contact and depression.
+The previously failing cases are included in the impact-width regression below.
+
+Longer regression runs also exposed inadequate space below a fully depressed
+blade. Travel is now limited to 0.28 radians (about 16 degrees). The minimum
+post/blade separation is 22.52 units; measured inner-tip-to-collection-ramp
+clearances are 36.32 units on the left and 27.67 on the right (marble diameter 20).
+A top-face incline assist, analogous to the simulator's ramp assist, prevents
+solver friction stranding a marble near the pivot. It does not act from below.
+
 
 ## Results
 
 | Check | Coverage | Result |
 | --- | --- | --- |
+| Brief-impact width regression | 102 cases: 34 positions across both blades, 3 incoming downward speeds | One actuation and passage per marble, including both previously failing cases |
+| Empty-board sequences | Blue/red starts at all 11 nonzero playback settings (22 cases) | No unactuated marble passed below the mechanism |
 | Physical center/side approach matrix | 306 cases: 17 positions, 3 incoming horizontal velocities, 6 speeds (0.25–8) | Exactly one actuation; passage and tray settling; no lost marbles |
 | Schematic approach matrix | 68 cases: 17 positions, 4 speeds | Exactly one actuation and collection |
 | Full screenshot-layout runs | 18 combinations: 8 or 20 marbles per color; blue, red, or both started; speeds 0.25, 1, 8 | Expected supplies exhausted; total marble counts conserved; released marbles settled clear of post and levers |
-| Pressed clearance | Left and right actual collision polygons | 49.44 units minimum separation on both sides; marble diameter 20; post stays fixed |
+| Pressed clearance | Left and right actual collision polygons | 22.52 units minimum separation on both sides; marble diameter 20; post stays fixed |
 | Release isolation | In-flight, intercepted, below-lever marbles; levers removed; return and idle | No unrequested automatic continuation |
 | Both lever directions | Individual physical and schematic passes; sequential supplies | Tip, release once, pass, return |
 | Other components | Both ramp directions, both crossover entries, alternating bit state, linked gear bits, interceptor | Passed |

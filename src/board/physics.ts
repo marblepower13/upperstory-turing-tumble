@@ -203,11 +203,20 @@ export class PhysicalBallRouter implements IBallRouter {
 
   protected _mapContacts():ContactMap {
     const contacts:ContactMap = new Map();
-    for (const pair of this.engine.pairs.collisionActive) {
+    // Matter separates first-touch contacts from continuing contacts. A quick
+    // strike can exist only in collisionStart; omitting it lets the spring
+    // reset an outer blade before that strike is handled.
+    const continuing = this.engine.pairs.collisionActive;
+    const starting = this.engine.pairs.collisionStart;
+    for (const pair of continuing.concat(starting)) {
       const partA = this._findPartBody(pair.bodyA);
       if (! partA) continue;
       const partB = this._findPartBody(pair.bodyB);
       if (! partB) continue;
+      // Preserve existing contact behavior for other components.
+      if (starting.indexOf(pair) >= 0 &&
+          !(partA.part instanceof Turnstile) &&
+          !(partB.part instanceof Turnstile)) continue;
       if ((partA.type == PartType.BALL) && (partB.type != PartType.BALL)) {
         if (! contacts.has(partB)) contacts.set(partB, new Set());
         contacts.get(partB).add({ ballPartBody: partA, tangent: pair.collision.tangent });

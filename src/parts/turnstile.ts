@@ -12,7 +12,7 @@ import { Animator } from 'ui/animator';
 export const LEVER_PIVOT_OFFSET:number = 2.6 * SPACING;
 export const LEVER_TIP:number = LEVER_PIVOT_OFFSET + (0.71 * SPACING);
 export const LEVER_REST_ANGLE:number = -0.035;
-export const LEVER_TRAVEL:number = 0.40;
+export const LEVER_TRAVEL:number = 0.28;
 
 export class Turnstile extends Part {
   public get canRotate():boolean { return(true); }

@@ -3,15 +3,31 @@
 This package updates the existing marblepower13/upperstory-turing-tumble repository.
 It is an update package, not a complete standalone checkout.
 
+## Brief-impact lever collision fix
+
+- Fixed a reproduced failure where a short strike near the outer section of
+  either lever passed without depression or a subsequent release.
+- Matter.js reports first-touch contacts in collisionStart separately from
+  continuing contacts in collisionActive. The lever handler now processes both.
+- Previously the return spring could reset a lever on that first contact because
+  the handler had not counted it. It now retains and handles the actual strike.
+- This does not add proximity-triggered releases. Depression and actual contact
+  are still required, and each marble can automatically advance only once.
+- Limited lever travel to keep the inner exit clear of the lower collection ramps.
+  A small incline assist on the blade's upper face moves resting marbles toward
+  the lowered tip, consistent with the existing ramp-assist approach. It does not
+  act on underside contacts or release marbles by proximity.
+- Other components retain their previous contact-processing behavior.
+
 ## Fixed center block and lever clearance
 
 - A fixed white center post separates the bottom levers. Its peaked top directs
   center approaches toward a lever; no feet extend into the exit paths.
 - Drawing, rigid-body collision, and schematic routing share the same post outline.
   Older standard-board saves acquire the post without a file-format change.
-- The blade tips terminate beside the post. Each lever swings down through 0.40
-  radians (about 23 degrees). At full depression, the closest blade/post separation
-  is 49.44 simulation units, compared with a marble diameter of 20 units.
+- The blade tips terminate beside the post. Each lever swings down through 0.28
+  radians (about 16 degrees). At full depression, the closest blade/post separation
+  is 22.52 simulation units, compared with a marble diameter of 20 units.
 - Automatic advancement requires actual marble/blade contact and measurable
   depression. Divider contact, proximity, falling, interception, and collection
   cannot themselves release another marble.
