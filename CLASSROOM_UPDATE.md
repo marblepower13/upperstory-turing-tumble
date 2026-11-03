@@ -3,6 +3,19 @@
 This package updates the existing marblepower13/upperstory-turing-tumble repository.
 It is an update package, not a complete standalone checkout.
 
+## Outer-end containment fix
+
+- Added a small raised black rim at each lever's outer end. The rim is part of
+  the moving lever, with matching visible and rigid-body geometry on both sides.
+- An outward-rolling marble is caught and guided back along the upper face rather
+  than falling off beyond the collection ramps. The rim itself does not trigger
+  another release; actual lever depression remains required.
+- Retained the center post, inner exit clearance, limited travel, and contact-only
+  release logic.
+- Strengthened the empty-board regression: every released marble must finish in
+  the collection area at rest, in addition to having actuated a lever. The earlier
+  check could miss an escape occurring after successful actuation.
+
 ## Brief-impact lever collision fix
 
 - Fixed a reproduced failure where a short strike near the outer section of

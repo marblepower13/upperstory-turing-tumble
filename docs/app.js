@@ -709,7 +709,7 @@ System.register("ui/animator", ["renderer"], function (exports_13, context_13) {
 System.register("parts/turnstile", ["pixi.js", "parts/part", "parts/ball", "board/constants", "renderer", "ui/animator"], function (exports_14, context_14) {
     "use strict";
     var __moduleName = context_14 && context_14.id;
-    var PIXI, part_10, ball_1, constants_1, renderer_2, animator_1, LEVER_PIVOT_OFFSET, LEVER_TIP, LEVER_REST_ANGLE, LEVER_TRAVEL, Turnstile;
+    var PIXI, part_10, ball_1, constants_1, renderer_2, animator_1, LEVER_PIVOT_OFFSET, LEVER_TIP, LEVER_REST_ANGLE, LEVER_TRAVEL, LEVER_OUTER_END, LEVER_RIM_INNER, LEVER_RIM_TOP, Turnstile;
     return {
         setters: [
             function (PIXI_2) {
@@ -738,6 +738,10 @@ System.register("parts/turnstile", ["pixi.js", "parts/part", "parts/ball", "boar
             exports_14("LEVER_TIP", LEVER_TIP = LEVER_PIVOT_OFFSET + (0.71 * constants_1.SPACING));
             exports_14("LEVER_REST_ANGLE", LEVER_REST_ANGLE = -0.035);
             exports_14("LEVER_TRAVEL", LEVER_TRAVEL = 0.28);
+            // Raised outer rim catches outward-rolling marbles. Shared with the collider.
+            exports_14("LEVER_OUTER_END", LEVER_OUTER_END = -40);
+            exports_14("LEVER_RIM_INNER", LEVER_RIM_INNER = -32);
+            exports_14("LEVER_RIM_TOP", LEVER_RIM_TOP = -36);
             Turnstile = class Turnstile extends part_10.Part {
                 constructor() {
                     super(...arguments);
@@ -779,12 +783,15 @@ System.register("parts/turnstile", ["pixi.js", "parts/part", "parts/ball", "boar
                     if (layer !== 2 /* FRONT */) {
                         g.lineStyle(1.5, 0x111619, 1);
                         g.beginFill(0x282c2e);
-                        g.moveTo(-24, -7);
+                        g.moveTo(LEVER_OUTER_END, -7);
                         g.lineTo(LEVER_TIP - 10, -5);
                         g.quadraticCurveTo(LEVER_TIP + 2, -5, LEVER_TIP + 2, 0);
                         g.quadraticCurveTo(LEVER_TIP + 2, 5, LEVER_TIP - 10, 5);
-                        g.lineTo(-24, 7);
+                        g.lineTo(LEVER_OUTER_END, 7);
                         g.closePath();
+                        g.endFill();
+                        g.beginFill(0x282c2e);
+                        g.drawRoundedRect(LEVER_OUTER_END, LEVER_RIM_TOP, LEVER_RIM_INNER - LEVER_OUTER_END, 6 - LEVER_RIM_TOP, 3);
                         g.endFill();
                         g.beginFill(0x222628);
                         g.drawCircle(-24, 0, 17);
@@ -1608,8 +1615,12 @@ System.register("parts/partbody", ["matter-js", "parts/factory", "parts/partvert
                         const sign = this._part.isFlipped ? -1 : 1;
                         this._bodyOffset.x = -sign * turnstile_2.LEVER_PIVOT_OFFSET;
                         this._body = this._bodyFromVertexSets([[
-                                { x: -24, y: -6 }, { x: turnstile_2.LEVER_TIP + 2, y: -5 },
-                                { x: turnstile_2.LEVER_TIP + 2, y: 5 }, { x: -24, y: 6 }
+                                { x: turnstile_2.LEVER_OUTER_END, y: -6 }, { x: turnstile_2.LEVER_TIP + 2, y: -5 },
+                                { x: turnstile_2.LEVER_TIP + 2, y: 5 }, { x: turnstile_2.LEVER_OUTER_END, y: 6 }
+                            ], [
+                                { x: turnstile_2.LEVER_OUTER_END, y: turnstile_2.LEVER_RIM_TOP },
+                                { x: turnstile_2.LEVER_RIM_INNER, y: turnstile_2.LEVER_RIM_TOP },
+                                { x: turnstile_2.LEVER_RIM_INNER, y: 6 }, { x: turnstile_2.LEVER_OUTER_END, y: 6 }
                             ]]);
                         matter_js_1.Body.setDensity(this._body, 0.004);
                     }

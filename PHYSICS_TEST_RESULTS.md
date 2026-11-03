@@ -18,7 +18,21 @@ the simulator's actual code. Rendering was stubbed. Interface checks separately
 used a DOM emulation. TypeScript compilation and JavaScript syntax checks passed.
 
 Compiled docs/app.js SHA-256:
-f6e271f4771185502a3ac957cc295513d66a44cbb118db462dc1e5d9babfd89e
+a4437616b9cbbe6b108845b1e3a45383238ebcb5b3010ca02e0cc9d9586333de
+
+## Reproduced outer-end escape
+
+The previous lever revision allowed outward-moving marbles to pass the outer
+pivot and miss the collection ramps. Targeted tests reproduced this on both sides.
+A raised rim now closes each outer end and moves with the lever. Its visible rim
+and collision shape use shared dimensions. It catches the outward roll without
+opening a new release path or changing the center post.
+
+The prior empty-board check asserted lever actuation but could accept an already
+actuated marble escaping the collector. The strengthened check requires every
+released marble to leave its supply, actuate a lever, remain in the board's marble
+set, and finish at rest within the collection area. This correction addresses
+that test-coverage gap; it does not make the engine tests a browser test.
 
 ## Reproduced brief-contact failure
 
@@ -44,8 +58,9 @@ solver friction stranding a marble near the pivot. It does not act from below.
 
 | Check | Coverage | Result |
 | --- | --- | --- |
+| Outer-end retention | 60 cases: both ends, five positions, six outward speeds up to the engine speed limit | No outside escape; exactly one actuation and bottom-tray settling |
 | Brief-impact width regression | 102 cases: 34 positions across both blades, 3 incoming downward speeds | One actuation and passage per marble, including both previously failing cases |
-| Empty-board sequences | Blue/red starts at all 11 nonzero playback settings (22 cases) | No unactuated marble passed below the mechanism |
+| Empty-board sequences | Blue/red starts at all 11 nonzero playback settings (22 cases) | All released marbles actuated a lever and settled within the collection area; counts conserved |
 | Physical center/side approach matrix | 306 cases: 17 positions, 3 incoming horizontal velocities, 6 speeds (0.25–8) | Exactly one actuation; passage and tray settling; no lost marbles |
 | Schematic approach matrix | 68 cases: 17 positions, 4 speeds | Exactly one actuation and collection |
 | Full screenshot-layout runs | 18 combinations: 8 or 20 marbles per color; blue, red, or both started; speeds 0.25, 1, 8 | Expected supplies exhausted; total marble counts conserved; released marbles settled clear of post and levers |

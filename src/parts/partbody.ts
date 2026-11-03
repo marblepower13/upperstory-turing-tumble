@@ -14,7 +14,7 @@ import { PartBallContact } from 'board/physics';
 import { Ball } from './ball';
 import { Slope } from './fence';
 import { Drop } from './drop';
-import { Turnstile, LEVER_PIVOT_OFFSET, LEVER_TIP } from './turnstile';
+import { Turnstile, LEVER_PIVOT_OFFSET, LEVER_TIP, LEVER_OUTER_END, LEVER_RIM_INNER, LEVER_RIM_TOP } from './turnstile';
 
 // this composes a part with a matter.js body which simulates it
 export class PartBody {
@@ -63,8 +63,12 @@ export class PartBody {
       const sign = this._part.isFlipped ? -1 : 1;
       this._bodyOffset.x = -sign * LEVER_PIVOT_OFFSET;
       this._body = this._bodyFromVertexSets([[
-        { x: -24, y: -6 }, { x: LEVER_TIP + 2, y: -5 },
-        { x: LEVER_TIP + 2, y: 5 }, { x: -24, y: 6 }
+        { x: LEVER_OUTER_END, y: -6 }, { x: LEVER_TIP + 2, y: -5 },
+        { x: LEVER_TIP + 2, y: 5 }, { x: LEVER_OUTER_END, y: 6 }
+      ], [
+        { x: LEVER_OUTER_END, y: LEVER_RIM_TOP },
+        { x: LEVER_RIM_INNER, y: LEVER_RIM_TOP },
+        { x: LEVER_RIM_INNER, y: 6 }, { x: LEVER_OUTER_END, y: 6 }
       ]]);
       Body.setDensity(this._body, 0.004);
     }

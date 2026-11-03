@@ -14,6 +14,11 @@ export const LEVER_TIP:number = LEVER_PIVOT_OFFSET + (0.71 * SPACING);
 export const LEVER_REST_ANGLE:number = -0.035;
 export const LEVER_TRAVEL:number = 0.28;
 
+// Raised outer rim catches outward-rolling marbles. Shared with the collider.
+export const LEVER_OUTER_END:number = -40;
+export const LEVER_RIM_INNER:number = -32;
+export const LEVER_RIM_TOP:number = -36;
+
 export class Turnstile extends Part {
   public get canRotate():boolean { return(true); }
   public get canMirror():boolean { return(false); }
@@ -46,12 +51,16 @@ export class Turnstile extends Part {
     if (layer !== Layer.FRONT) {
       g.lineStyle(1.5, 0x111619, 1);
       g.beginFill(0x282c2e);
-      g.moveTo(-24, -7);
+      g.moveTo(LEVER_OUTER_END, -7);
       g.lineTo(LEVER_TIP - 10, -5);
       g.quadraticCurveTo(LEVER_TIP + 2, -5, LEVER_TIP + 2, 0);
       g.quadraticCurveTo(LEVER_TIP + 2, 5, LEVER_TIP - 10, 5);
-      g.lineTo(-24, 7);
+      g.lineTo(LEVER_OUTER_END, 7);
       g.closePath();
+      g.endFill();
+      g.beginFill(0x282c2e);
+      g.drawRoundedRect(LEVER_OUTER_END, LEVER_RIM_TOP,
+        LEVER_RIM_INNER - LEVER_OUTER_END, 6 - LEVER_RIM_TOP, 3);
       g.endFill();
       g.beginFill(0x222628);
       g.drawCircle(-24, 0, 17);
