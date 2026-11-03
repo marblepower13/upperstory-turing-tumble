@@ -2041,10 +2041,14 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/gea
                     }
                 }
                 beforeUpdate() {
-                    this.addNeighborParts(this._boardChangeCounter !== this.board.changeCounter);
+                    const partsChanged = this.addNeighborParts(this._boardChangeCounter !== this.board.changeCounter);
                     this._boardChangeCounter = this.board.changeCounter;
                     for (const partBody of this._parts.values()) {
                         partBody.updateBodyFromPart();
+                    }
+                    // if parts have been added or removed, update the broadphase grid
+                    if ((partsChanged) && (this.engine.broadphase)) {
+                        matter_js_2.Grid.update(this.engine.broadphase, matter_js_2.Composite.allBodies(this.engine.world), this.engine, true);
                     }
                 }
                 afterUpdate() {
@@ -2181,6 +2185,8 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/gea
                     this._wallWidth = w;
                     this._wallHeight = h;
                 }
+                // update the working set of parts to include those that are near balls,
+                //  and return whether parts have been added or removed
                 addNeighborParts(force = false) {
                     // track parts to add and remove
                     const addParts = new Set();
@@ -2234,6 +2240,7 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/gea
                         this.addPart(part);
                     for (const part of removeParts)
                         this.removePart(part);
+                    return ((addParts.size > 0) || (removeParts.size > 0));
                 }
                 addPart(part) {
                     if (this._parts.has(part))
@@ -2819,7 +2826,9 @@ System.register("board/serializer", ["parts/drop"], function (exports_24, contex
                     const a = document.createElement('a');
                     a.setAttribute('href', url);
                     a.setAttribute('download', 'ttsim.png');
+                    document.body.appendChild(a);
                     a.click();
+                    document.body.removeChild(a);
                     return (true);
                 }
                 upload(callback) {
@@ -3463,6 +3472,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     // storage for the part grid
                     this._grid = [];
                     this._bulkUpdate = false;
+                    this.allowBoardResize = false;
                     this._tool = 3 /* HAND */;
                     this._partPrototype = null;
                     // keep a set of all drops on the board
@@ -4468,6 +4478,11 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     }
                     return (null);
                 }
+                // The classroom Add marbles tool only targets supply holding areas.
+                marbleSupplyAt(c, r) {
+                    const drop = this.catchmentDrop(c, r);
+                    return (drop && r <= drop.row + 0.5) ? drop : null;
+                }
                 // return the drop that's closest to the given location
                 nearestDrop(c, r) {
                     let nearest = null;
@@ -4678,6 +4693,10 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     this.view.addListener('mousemove', this._onMouseMove.bind(this));
                     this.view.addListener('mouseup', this._onMouseUp.bind(this));
                     this.view.addListener('click', this._onClick.bind(this));
+                    this.view.addListener('touchstart', this._onMouseDown.bind(this));
+                    this.view.addListener('touchmove', this._onMouseMove.bind(this));
+                    this.view.addListener('touchend', this._onMouseUp.bind(this));
+                    this.view.addListener('tap', this._onClick.bind(this));
                 }
                 _bindKeyEvents() {
                     const ctrl = keyboard_1.makeKeyHandler('Control');
@@ -4784,7 +4803,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                             // don't clear locked parts when dragging, as it's less likely
                             //  to be intentional than with a click
                             const oldPart = this.getPart(column, row);
-                            if (!oldPart.isLocked)
+                            if (oldPart && !oldPart.isLocked && oldPart.type !== 0 /* BLANK */)
                                 this.clearPart(column, row);
                         }
                     }
@@ -4900,6 +4919,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         cursor = 'all-scroll';
                     }
                     else if ((this.tool == 1 /* PART */) && (this.partPrototype) &&
+                        ((this.partPrototype.type !== 9 /* BALL */) || !!this.marbleSupplyAt(c, r)) &&
                         ((this.canPlacePart(this.partPrototype.type, column, row)) ||
                             ((row == -1) && (column >= 0) && (column < this.columnCount)))) {
                         this._action = this.partPrototype.type == 9 /* BALL */ ?
@@ -4940,7 +4960,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         this._action = 5 /* DRAG_PART */;
                         cursor = 'grab';
                     }
-                    else if ((this.tool == 3 /* HAND */) &&
+                    else if ((this.allowBoardResize && this.tool == 3 /* HAND */) &&
                         (this._actionRow >= 0) && (this._actionRow < this.rowCount) &&
                         ((Math.abs(this._actionX - this.xForColumn(-1)) < 16 /* RESIZE_THRESHOLD */) ||
                             (Math.abs(this._actionX - this.xForColumn(this.columnCount)) < 16 /* RESIZE_THRESHOLD */))) {
@@ -4950,7 +4970,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         this._actionResizeDelta = 0;
                         cursor = 'ew-resize';
                     }
-                    else if ((this.tool == 3 /* HAND */) &&
+                    else if ((this.allowBoardResize && this.tool == 3 /* HAND */) &&
                         (this._actionColumn >= 0) && (this._actionColumn < this.columnCount) &&
                         ((Math.abs(this._actionY - this.yForRow(-1)) < 16 /* RESIZE_THRESHOLD */) ||
                             (Math.abs(this._actionY - this.yForRow(this.rowCount)) < 16 /* RESIZE_THRESHOLD */))) {
@@ -5019,6 +5039,9 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                             this.layoutPart(this.partPrototype, this.columnForX(this._actionX), this.rowForY(this._actionY));
                         }
                         else if (this._action === 2 /* PLACE_BALL */) {
+                            const drop = this.marbleSupplyAt(this.columnForX(this._actionX), this.rowForY(this._actionY));
+                            if (drop)
+                                this.partPrototype.hue = drop.hue;
                             this.partPrototype.visible = true;
                             this.partPrototype.x = Math.round(this._actionX);
                             this.partPrototype.y = Math.round(this._actionY);
@@ -5050,20 +5073,14 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     }
                     else if ((this._action === 2 /* PLACE_BALL */) &&
                         (this.partPrototype)) {
-                        const ball = this.ballUnder(this.columnForX(this._actionX), this.rowForY(this._actionY));
-                        if (ball) {
-                            this.removeBall(ball);
-                        }
-                        else {
-                            this.addBall(this.partFactory.copy(this.partPrototype), this.columnForX(this._actionX), this.rowForY(this._actionY));
-                        }
+                        const drop = this.marbleSupplyAt(this.columnForX(this._actionX), this.rowForY(this._actionY));
+                        if (drop)
+                            this.addBallToDrop(drop);
                     }
                     else if (this._action === 3 /* CLEAR_PART */) {
-                        // clearing a background part makes a blank
-                        if (this.isBackgroundPart(this._actionColumn, this._actionRow)) {
-                            this.setPart(this.partFactory.make(0 /* BLANK */), this._actionColumn, this._actionRow);
-                        }
-                        else {
+                        // Classroom eraser removes components, never pegs or fixed board pieces.
+                        const part = this.getPart(this._actionColumn, this._actionRow);
+                        if (part && !part.isLocked && !this.isBackgroundPart(this._actionColumn, this._actionRow) && part.type !== 0 /* BLANK */) {
                             this.clearPart(this._actionColumn, this._actionRow);
                         }
                     }
@@ -5326,6 +5343,7 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                     this._buttons.push(button);
                     this.addChild(button);
                     button.addListener('click', this._onButtonClick.bind(this));
+                    button.addListener('tap', this._onButtonClick.bind(this));
                     this._layout();
                 }
                 // handle buttons being clicked
@@ -5629,6 +5647,7 @@ System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/conf
                     this._drawer.peer = this;
                     this.addChildAt(this._drawer, 0);
                     this._drawer.visible = false;
+                    this._drawer.autowidth = false;
                     // add a button to show and hide extra board operations
                     this._drawerButton = new button_2.SpriteButton(new PIXI.Sprite(board.partFactory.textures['board-drawer']));
                     this.addButton(this._drawerButton);
@@ -5664,12 +5683,14 @@ System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/conf
                     this.updateToggled();
                     // zoom on wheel events
                     document.addEventListener('wheel', (e) => {
-                        if (e.wheelDelta > 0)
+                        if (!(e.target instanceof HTMLCanvasElement))
+                            return;
+                        if ((e.deltaY < 0) || (e.deltaX < 0) || (e.deltaZ < 0))
                             this.zoomIn();
-                        else if (e.wheelDelta < 0)
+                        else if ((e.deltaY > 0) || (e.deltaX > 0) || (e.deltaZ > 0))
                             this.zoomOut();
                         e.preventDefault();
-                    });
+                    }, { passive: false });
                 }
                 onButtonClick(button) {
                     if (button === this._schematicButton) {
@@ -5934,6 +5955,7 @@ System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar",
                     this.textures = textures;
                     this._width = 0;
                     this._height = 0;
+                    this.classroomControls = false;
                     this.partFactory = new factory_2.PartFactory(textures);
                     this.board = new board_3.Board(this.partFactory);
                     this.toolbar = new toolbar_1.Toolbar(this.board);
@@ -5967,7 +5989,16 @@ System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar",
                     this._height = v;
                     this._layout();
                 }
+                refreshLayout() { this._layout(); }
                 _layout() {
+                    if (this.classroomControls) {
+                        this.toolbar.visible = this.actionbar.visible = false;
+                        this.board.view.x = 0;
+                        this.board.width = this.width;
+                        this.board.height = this.height;
+                        renderer_9.Renderer.needsUpdate();
+                        return;
+                    }
                     this.toolbar.height = this.height;
                     this.actionbar.height = this.height;
                     this.actionbar.x = this.width - this.actionbar.width;
@@ -6052,6 +6083,7 @@ System.register("index", ["pixi.js", "app", "renderer", "board/builder", "board/
                     // attach the stage to the document and fade it in
                     container.appendChild(renderer_10.Renderer.instance.view);
                     container.style.opacity = '1';
+                    window.dispatchEvent(new CustomEvent('simulator-ready', { detail: { sim, BoardBuilder: builder_2.BoardBuilder } }));
                     // start the game loop
                     PIXI.ticker.shared.add(sim.update, sim);
                 });

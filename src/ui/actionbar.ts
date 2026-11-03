@@ -66,11 +66,11 @@ export class Actionbar extends ButtonBar {
     this.updateToggled();
     // zoom on wheel events
     document.addEventListener('wheel', (e:WheelEvent) => {
-      console.log(e);
+      if (!(e.target instanceof HTMLCanvasElement)) return;
       if ((e.deltaY < 0) || (e.deltaX < 0) || (e.deltaZ < 0)) this.zoomIn();
       else if ((e.deltaY > 0) || (e.deltaX > 0) || (e.deltaZ > 0)) this.zoomOut();
       e.preventDefault();
-    });
+    }, { passive: false });
   }
   private _schematicButton:Button;
   private _zoomInButton:Button;

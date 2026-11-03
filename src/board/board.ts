@@ -737,6 +737,8 @@ export class Board {
     return((part) && (part.canFlip || part.canRotate) && (! part.isLocked));
   }
 
+  public allowBoardResize:boolean = false;
+
   // whether the part at the given location can be dragged
   public canDragPart(column:number, row:number):boolean {
     const part = this.getPart(column, row);
@@ -1066,6 +1068,12 @@ export class Board {
       lc = c;
     }
     return(null);
+  }
+
+  // The classroom Add marbles tool only targets supply holding areas.
+  public marbleSupplyAt(c:number, r:number):Drop {
+    const drop = this.catchmentDrop(c, r);
+    return (drop && r <= drop.row + 0.5) ? drop : null;
   }
 
   // return the drop that's closest to the given location
@@ -1402,7 +1410,7 @@ export class Board {
         // don't clear locked parts when dragging, as it's less likely
         //  to be intentional than with a click
         const oldPart = this.getPart(column, row);
-        if (! oldPart.isLocked) this.clearPart(column, row);
+        if (oldPart && !oldPart.isLocked && oldPart.type !== PartType.BLANK) this.clearPart(column, row);
       }
     }
     else if (this._action === ActionType.FLIP_PART) {
@@ -1520,6 +1528,7 @@ export class Board {
       cursor = 'all-scroll';
     }
     else if ((this.tool == ToolType.PART) && (this.partPrototype) &&
+             ((this.partPrototype.type !== PartType.BALL) || !!this.marbleSupplyAt(c, r)) &&
              ((this.canPlacePart(this.partPrototype.type, column, row)) || 
               ((row == -1) && (column >= 0) && (column < this.columnCount)))) {
       this._action = this.partPrototype.type == PartType.BALL ?
@@ -1561,7 +1570,7 @@ export class Board {
       cursor = 'grab';
     }
     // if the cursor is close to the edge of the board, enable resize
-    else if ((this.tool == ToolType.HAND) && 
+    else if ((this.allowBoardResize && this.tool == ToolType.HAND) && 
              (this._actionRow >= 0) && (this._actionRow < this.rowCount) && 
         ((Math.abs(this._actionX - this.xForColumn(-1)) < Sizes.RESIZE_THRESHOLD) ||
          (Math.abs(this._actionX - this.xForColumn(this.columnCount)) < Sizes.RESIZE_THRESHOLD))) {
@@ -1572,7 +1581,7 @@ export class Board {
       cursor = 'ew-resize';
       
     }
-    else if ((this.tool == ToolType.HAND) && 
+    else if ((this.allowBoardResize && this.tool == ToolType.HAND) && 
              (this._actionColumn >= 0) && (this._actionColumn < this.columnCount) && 
         ((Math.abs(this._actionY - this.yForRow(-1)) < Sizes.RESIZE_THRESHOLD) ||
          (Math.abs(this._actionY - this.yForRow(this.rowCount)) < Sizes.RESIZE_THRESHOLD))) {
@@ -1654,6 +1663,9 @@ export class Board {
           this.columnForX(this._actionX), this.rowForY(this._actionY));
       }
       else if (this._action === ActionType.PLACE_BALL) {
+        const drop = this.marbleSupplyAt(this.columnForX(this._actionX),
+                                         this.rowForY(this._actionY));
+        if (drop) this.partPrototype.hue = drop.hue;
         this.partPrototype.visible = true;
         this.partPrototype.x = Math.round(this._actionX);
         this.partPrototype.y = Math.round(this._actionY);
@@ -1688,24 +1700,15 @@ export class Board {
     // place a ball
     else if ((this._action === ActionType.PLACE_BALL) &&
              (this.partPrototype)) {
-      const ball = this.ballUnder(this.columnForX(this._actionX),
-                                  this.rowForY(this._actionY));
-      if (ball) {
-        this.removeBall(ball);
-      }
-      else {
-        this.addBall(this.partFactory.copy(this.partPrototype) as Ball, 
-          this.columnForX(this._actionX), this.rowForY(this._actionY));
-      }
+      const drop = this.marbleSupplyAt(this.columnForX(this._actionX),
+                                       this.rowForY(this._actionY));
+      if (drop) this.addBallToDrop(drop);
     }
     // clear parts
     else if (this._action === ActionType.CLEAR_PART) {
-      // clearing a background part makes a blank
-      if (this.isBackgroundPart(this._actionColumn, this._actionRow)) {
-        this.setPart(this.partFactory.make(PartType.BLANK), 
-          this._actionColumn, this._actionRow);
-      }
-      else {
+      // Classroom eraser removes components, never pegs or fixed board pieces.
+      const part = this.getPart(this._actionColumn, this._actionRow);
+      if (part && !part.isLocked && !this.isBackgroundPart(this._actionColumn, this._actionRow) && part.type !== PartType.BLANK) {
         this.clearPart(this._actionColumn, this._actionRow);
       }
     }

@@ -11,7 +11,7 @@ server:
 
 # APP
 
-app: dependencies docs/index.html docs/app.js
+app: dependencies docs/index.html docs/app.js docs/classroom-ui.css docs/classroom-ui.js
 
 docs/index.html: src/index.html
 	mkdir -p docs
@@ -94,3 +94,10 @@ clean:
 	-rm -rf node_modules
 	-rm -rf docs/*
 	-rm -rf build
+
+# Classroom interface assets (no artwork rebuild required).
+docs/classroom-ui.css: src/classroom-ui.css
+	cp $< $@
+
+docs/classroom-ui.js: src/classroom-ui.js
+	cp $< $@

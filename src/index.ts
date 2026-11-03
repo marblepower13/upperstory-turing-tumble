@@ -52,6 +52,7 @@ loader.add('images/parts.json').load(() => {
     // attach the stage to the document and fade it in
     container.appendChild(Renderer.instance.view);
     container.style.opacity = '1';
+    window.dispatchEvent(new CustomEvent('simulator-ready', { detail: { sim, BoardBuilder } }));
     // start the game loop
     PIXI.ticker.shared.add(sim.update, sim);
   });

@@ -56,7 +56,19 @@ export class SimulatorApp extends PIXI.Container {
   }
   private _height:number = 0;
 
+  public classroomControls:boolean = false;
+
+  public refreshLayout():void { this._layout(); }
+
   protected _layout():void {
+    if (this.classroomControls) {
+      this.toolbar.visible = this.actionbar.visible = false;
+      this.board.view.x = 0;
+      this.board.width = this.width;
+      this.board.height = this.height;
+      Renderer.needsUpdate();
+      return;
+    }
     this.toolbar.height = this.height;
     this.actionbar.height = this.height;
     this.actionbar.x = this.width - this.actionbar.width;
