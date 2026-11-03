@@ -227,9 +227,9 @@ export class Board {
     this._setContainer(Layer.MID, false);
     this._setContainer(Layer.FRONT, false);
     this._setContainer(Layer.SCHEMATIC_BACK, true);
-    this._setContainer(Layer.SCHEMATIC, true);
-    this._setContainer(Layer.SCHEMATIC_4, true);
-    this._setContainer(Layer.SCHEMATIC_2, true);
+    this._setContainer(Layer.SCHEMATIC, false);
+    this._setContainer(Layer.SCHEMATIC_4, false);
+    this._setContainer(Layer.SCHEMATIC_2, false);
     this._setContainer(Layer.CONTROL, false);
     this._updateLayerVisibility();
   }
@@ -1009,6 +1009,7 @@ export class Board {
   // return all balls to their appropriate drops
   public returnBalls():void {
     for (const drop of this.drops) {
+      for (const lever of drop.turnstiles) lever.resetWithoutRelease();
       this.setDropBallCount(drop);
     }
   }
@@ -1725,8 +1726,7 @@ export class Board {
     else if ((this._action === ActionType.TURN_TURNSTILE) &&
              (this._actionPart instanceof Turnstile)) {
       const ts = this._actionPart;
-      Animator.current.animate(ts, 'rotation', 0, 1, 
-        Delays.TURN, () => { ts.rotation = 0.0 });
+      ts.pulse(this.speed);
     }
   }
 

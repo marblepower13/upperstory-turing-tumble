@@ -11,7 +11,7 @@ server:
 
 # APP
 
-app: dependencies docs/index.html docs/app.js docs/classroom-ui.css docs/classroom-ui.js
+app: dependencies docs/index.html docs/app.js docs/classroom-ui.css docs/classroom-ui.js docs/images/release-lever.svg
 
 docs/index.html: src/index.html
 	mkdir -p docs
@@ -100,4 +100,7 @@ docs/classroom-ui.css: src/classroom-ui.css
 	cp $< $@
 
 docs/classroom-ui.js: src/classroom-ui.js
+	cp $< $@
+
+docs/images/release-lever.svg: src/svg/release-lever.svg
 	cp $< $@

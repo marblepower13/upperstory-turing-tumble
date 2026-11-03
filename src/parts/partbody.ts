@@ -14,7 +14,7 @@ import { PartBallContact } from 'board/physics';
 import { Ball } from './ball';
 import { Slope } from './fence';
 import { Drop } from './drop';
-import { Turnstile } from './turnstile';
+import { Turnstile, LEVER_PIVOT_OFFSET, LEVER_TIP } from './turnstile';
 
 // this composes a part with a matter.js body which simulates it
 export class PartBody {
@@ -57,6 +57,16 @@ export class PartBody {
     else if (this._part instanceof Slope) {
       this._body = this._bodyForSlope(this._part);
       this._slopeSignature = this._part.signature;
+    }
+    // Single lever blade about an outer pivot; no hidden rotor remains.
+    else if (this._part instanceof Turnstile) {
+      const sign = this._part.isFlipped ? -1 : 1;
+      this._bodyOffset.x = -sign * LEVER_PIVOT_OFFSET;
+      this._body = this._bodyFromVertexSets([[
+        { x: -24, y: -6 }, { x: LEVER_TIP + 2, y: -5 },
+        { x: LEVER_TIP + 2, y: 5 }, { x: -24, y: 6 }
+      ]]);
+      Body.setDensity(this._body, 0.004);
     }
     // construct other parts from stored vertices
     else {
@@ -337,7 +347,8 @@ export class PartBody {
           Body.setAngularVelocity(this._body, 0);
         }
         // engage and disengage based on ball contact
-        const engaged = ((nearby instanceof Set) && (nearby.size > 0));
+        const engaged = ((nearby instanceof Set) && (nearby.size > 0)) ||
+          ((contacts instanceof Set) && (contacts.size > 0));
         if (! engaged) {
           target = this._part.angleForRotation(0);
           lock = true;

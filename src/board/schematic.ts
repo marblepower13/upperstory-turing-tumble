@@ -8,6 +8,7 @@ import { Ball } from 'parts/ball';
 import { PART_SIZE, BALL_RADIUS, SPACING } from './constants';
 import { Slope, Side } from 'parts/fence';
 import { GearBase } from 'parts/gearbit';
+import { Turnstile } from 'parts/turnstile';
 
 type RouteMethod = (part:Part, ball:Ball) => boolean;
 
@@ -240,38 +241,18 @@ export class SchematicBallRouter implements IBallRouter {
     return(true);
   }
 
+  private _passedLevers:WeakMap<Ball, Turnstile> = new WeakMap();
   protected routeTurnstile(part:Part, ball:Ball):boolean {
-    // convert to direction and position neutral coordinates for simplicity
+    const lever = part as Turnstile;
     const sign = part.isFlipped ? -1 : 1;
-    let r = ball.row - part.row;
-    let tc = NaN;
-    let tr = NaN;
-    // lots of magic numbers here because the shape is complicated
-    const pocketR = -0.35;
-    const pocketC = 0.13;
-    if (r < pocketR) {
-      // if another ball is already rotating the turnstile, 
-      //  stop this one until that one goes through
-      if (part.rotation > 0.1) return(true);
-      tc = pocketC;
-      tr = pocketR;
+    if (this._passedLevers.get(ball) !== lever) {
+      this._passedLevers.set(ball, lever);
+      lever.registerPass(ball);
+      lever.pulse(this.board.speed, false);
     }
-    else if ((part.rotation < 1.0) && (r < pocketC)) {
-      part.rotation += 0.01;
-      const v = Vector.rotate({ x: pocketC, y: pocketR }, 
-        part.angleForRotation(part.rotation) * sign);
-      tc = v.x;
-      tr = v.y;
-    }
-    else {
-      part.rotation = 0.0;
-      tr = 0.28;
-      tc = EXIT;
-    }
-    // if there is a target, convert back into real coordinates and route
-    if ((! isNaN(tc)) && (! isNaN(tr))) {
-      this.approachTarget(ball, part.column + (tc * sign), part.row + tr);
-    }
+    // Guide the marble downward through the open inner end, rather than
+    // tracing the previous four-spoke rotor's circular pocket.
+    this.approachTarget(ball, part.column + (EXIT * sign), part.row + EXIT);
     return(true);
   }
 

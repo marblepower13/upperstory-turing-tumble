@@ -14,6 +14,7 @@ import { PartBody, PartBodyFactory } from 'parts/partbody';
 import { SPACING } from './constants';
 import { Animator } from 'ui/animator';
 import { PartType } from 'parts/factory';
+import { Turnstile } from 'parts/turnstile';
 
 export type PartBallContact = {
   ballPartBody: PartBody,
@@ -82,6 +83,11 @@ export class PhysicalBallRouter implements IBallRouter {
   public afterUpdate():void {
     // determine the set of balls touching each part
     const contacts:ContactMap = this._mapContacts();
+    for (const [partBody, hits] of contacts.entries()) {
+      if (partBody.part instanceof Turnstile) {
+        for (const hit of hits) partBody.part.registerPass(hit.ballPartBody.part as Ball);
+      }
+    }
     const nearby = this._mapNearby();
     // apply physics corrections
     for (const partBody of this._parts.values()) {
@@ -171,6 +177,26 @@ export class PhysicalBallRouter implements IBallRouter {
       if (! partBody) continue;
       if (! map.has(partBody)) map.set(partBody, new Set());
       map.get(partBody).add(ballPartBody);
+    }
+    // The outer pivot is offset from the indexed receiving point. Keep the
+    // lever depressed only while a marble is passing its inner tip.
+    for (const [part, partBody] of this._parts.entries()) {
+      if (!(part instanceof Turnstile)) continue;
+      map.delete(partBody);
+      for (const ball of this.balls) {
+        const ballBody = this._parts.get(ball);
+        if (!ballBody || !ballBody.body) continue;
+        const dc = ((ballBody.body.position.x / SPACING) - part.column) *
+          (part.isFlipped ? -1 : 1);
+        const dr = (ballBody.body.position.y / SPACING) - part.row;
+        if ((dc >= -0.75) && (dc <= 1.0) && (dr >= 0.2) && (dr < 0.9)) {
+          part.registerPass(ball);
+        }
+        if ((dc >= -0.75) && (dc <= 1.0) && (dr >= -0.75) && (dr < 0.8)) {
+          if (!map.has(partBody)) map.set(partBody, new Set());
+          map.get(partBody).add(ballBody);
+        }
+      }
     }
     return(map);
   }
@@ -267,6 +293,16 @@ export class PhysicalBallRouter implements IBallRouter {
       ball.lastColumn = column;
       ball.lastRow = row;
     }
+    // Long lever arms extend beyond their indexed receiving peg. Keep both
+    // blades active so an off-center impact cannot pass through an inactive arm.
+    for (const drop of (this.board.drops || [])) {
+      for (const lever of drop.turnstiles) {
+        if (this.board.getPart(lever.column, lever.row) === lever) {
+          if (!this._parts.has(lever)) addParts.add(lever);
+          removeParts.delete(lever);
+        }
+      }
+    }
     // add new parts and remove old ones
     for (const part of addParts) this.addPart(part);
     for (const part of removeParts) this.removePart(part);
@@ -303,6 +339,10 @@ export class PhysicalBallRouter implements IBallRouter {
       for (const gear of part.connected) {
         if ((gear instanceof Gearbit) && (this._parts.has(gear))) return;
       }
+    }
+    if (part instanceof Turnstile) {
+      part.rotation = 0;
+      return;
     }
     if (this.board.speed > 0) {
       Animator.current.animate(part, 'rotation', 

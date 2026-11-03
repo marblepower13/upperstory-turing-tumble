@@ -3,6 +3,22 @@
 This package updates the existing marblepower13/upperstory-turing-tumble repository.
 It is an update package, not a complete standalone checkout.
 
+## Approved lever and wording revision
+
+- The bottom release mechanisms now use two mirrored, slender black lever arms,
+  with blue/red caps and an outer pivot. Each tips down through a limited angle
+  and returns to rest; it does not spin through a quarter-turn.
+- The actual collision geometry is a single blade rather than the old rotor.
+  Both full-length arms remain active in the physics engine, including off-center
+  contacts. Each marble can trigger a given lever only once.
+- Physical mode releases on blade contact or crossing its receiving end;
+  schematic mode uses a single tipping animation and release event.
+- Returning marbles cancels lever movement without releasing another marble.
+- The Interceptor tooltip no longer suggests flipping it.
+- Add marbles no longer includes generic peg placement or flip instructions.
+- Help ends with: Contact hello@upperstory.com with any questions.
+- The Advanced release-lever tool uses a matching simple-lever icon.
+
 ## What changed
 
 - Labeled building and playback controls, with hover/focus explanations.
@@ -52,6 +68,10 @@ GitHub commit history can restore the previous version if needed.
 - DOM-level checks exercised control startup, part-tool mappings, selection state,
   speed changes, return marbles, fit, Advanced, schematic mode, reset confirmation,
   reset state, icon mappings, and hover descriptions.
+- The compiled simulator was exercised using its actual Matter.js engine with
+  rendering stubbed: left/right lever passes, eight-marble sequences on both sides,
+  schematic passes, and return-without-release behavior passed. This verifies
+  simulation behavior, but is not a visual browser test.
 - Full visual and live canvas interaction tests could not run in the development
   environment because an installed browser was unavailable. After publishing, check
   the desktop layout, placing/flipping/removing parts, marble and gear operation,
