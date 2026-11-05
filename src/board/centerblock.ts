@@ -9,12 +9,30 @@ export type CenterBlock = { column:number, row:number };
 // extend into either lever's sweep or the falling-marble exit path.
 export const CENTER_BLOCK_VERTICES = [
   {x: 0, y: -0.70 * SPACING},
-  {x: 0.23 * SPACING, y: -0.50 * SPACING},
-  {x: 0.12 * SPACING, y: 0.38 * SPACING},
+  {x: 0.415 * SPACING, y: -0.50 * SPACING},
+  {x: 0.415 * SPACING, y: -0.10 * SPACING},
+  {x: 0.10 * SPACING, y: 0.15 * SPACING},
   {x: 0.08 * SPACING, y: 0.45 * SPACING},
   {x: -0.08 * SPACING, y: 0.45 * SPACING},
-  {x: -0.12 * SPACING, y: 0.38 * SPACING},
-  {x: -0.23 * SPACING, y: -0.50 * SPACING}
+  {x: -0.10 * SPACING, y: 0.15 * SPACING},
+  {x: -0.415 * SPACING, y: -0.10 * SPACING},
+  {x: -0.415 * SPACING, y: -0.50 * SPACING}
+];
+
+// Match schematic deflection to the same widened cap and tapered stem.
+export function centerBlockHalfWidth(rowOffset:number):number {
+  const r=Math.max(-0.70,Math.min(0.45,rowOffset));
+  if(r< -0.50)return 0.415*(r+0.70)/0.20;
+  if(r<=-0.10)return 0.415;
+  if(r<=0.15)return 0.415+(0.10-0.415)*(r+0.10)/0.25;
+  return 0.10+(0.08-0.10)*(r-0.15)/0.30;
+}
+
+// Convex pieces exactly cover the widened cap and tapered stem. Passing a
+// concave outline directly to Matter's SAT would incorrectly obstruct the exit.
+export const CENTER_BLOCK_COLLIDERS = [
+  [0,1,2,3,6,7,8].map(i=>CENTER_BLOCK_VERTICES[i]),
+  [3,4,5,6].map(i=>CENTER_BLOCK_VERTICES[i])
 ];
 
 // Derive fixed dividers from the actual paired bottom levers. This also makes
@@ -66,7 +84,7 @@ export function isLeverInletPart(board:Board,part:Part):boolean {
 export function inletCollider(inlet:LeverInlet):{x:number,y:number}[] {
   // Solid backing below the thin visible edge catches fast incoming marbles.
   // It shares the same upper face and never forms an extra visible box.
-  const a=inlet.start,b=inlet.end,t=0.22*SPACING;
+  const a=inlet.start,b=inlet.end,t=0.075*SPACING;
   return [{x:a.x,y:a.y-0.035*SPACING},{x:b.x,y:b.y-0.035*SPACING},
     {x:b.x,y:b.y+t},{x:a.x,y:a.y+t}];
 }

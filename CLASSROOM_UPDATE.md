@@ -3,6 +3,36 @@
 This package updates the existing marblepower13/upperstory-turing-tumble repository.
 It is an update package, not a complete standalone checkout.
 
+## Solid lower slopes and tighter center block - November 5, 2026
+
+- Corrected the lower white slopes' collision filtering so they support marbles
+  in both release states. A marble landing on either slope rolls inward toward
+  the exposed receiving lever, then actuates the mechanism and exits below.
+- Widened the fixed center block at the resting lever tips. Each resting gap is
+  about 1.23 model units; the full-depression exit has about 23.21 units of
+  clearance for a 20-unit marble. The wider cap tapers below the receiving area.
+- The block uses two convex collision pieces matching its visible profile.
+  The visible white slope and its collision surface remain aligned and fixed.
+- After an actual lever impact, the rigid lever completes its downward stroke
+  and stays open until the passing marble clears. It then returns and reloads
+  its linked top releaser. Pause freezes this motion. One marble still triggers
+  at most one linked release.
+- Schematic routing follows the wider cap and retains its chosen approach side
+  while clearing the shoulder, preventing a marble from oscillating there.
+- Verified 144 direct slope landings, both marble collision states and colors,
+  four landing locations, three entry velocities and slow/normal/fast speeds.
+  Checks require slope contact before actuation, inward rolling and collection.
+- Ramp components and their counterweight/speed parameters were not changed.
+  README.md, LICENSE, branding and classroom controls are retained.
+
+Extract and upload the contents of upperstory-turing-tumble-update to matching
+folders in the existing repository. This ZIP is an update, not a full repository.
+Keep master's /docs publishing source. No remote files were changed for you.
+
+See PHYSICS_TEST_RESULTS.md for current checks and live-review steps.
+
+## Prior release notes
+
 ## Rigid lever, continuous slope and reset corrections - November 5, 2026
 
 - Reset all reconnects the NEW supply objects even when board coordinates and

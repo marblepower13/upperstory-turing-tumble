@@ -9,7 +9,7 @@ import { PART_SIZE, BALL_RADIUS, SPACING } from './constants';
 import { Slope, Side } from 'parts/fence';
 import { GearBase } from 'parts/gearbit';
 import { Turnstile, LEVER_REST_ANGLE, LEVER_PIVOT_OFFSET, LEVER_TIP } from 'parts/turnstile';
-import { centerBlocks } from './centerblock';
+import { centerBlocks, centerBlockHalfWidth } from './centerblock';
 
 type RouteMethod = (part:Part, ball:Ball) => boolean;
 
@@ -100,11 +100,17 @@ export class SchematicBallRouter implements IBallRouter {
     // an adjacent blade. The post itself never advances the machine.
     for (const block of centerBlocks(this.board)) {
       const dc = ball.column - block.column, dr = ball.row - block.row;
-      if (Math.abs(dc) < 0.23 + RAD && dr + RAD >= -0.70 && dr <= 0.45 + RAD) {
+      const width=centerBlockHalfWidth(dr);
+      if (Math.abs(dc) < width + RAD && dr + RAD >= -0.70 && dr <= 0.45 + RAD) {
         const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
-        const sign = from < block.column ? -1 : from > block.column ? 1 :
-          (ball.drop && ball.drop.isFlipped ? 1 : -1);
-        this.approachTarget(ball, block.column + sign * (0.23 + RAD + 0.025),
+        let approach=this._postApproaches.get(ball);
+        if(!approach||approach.column!==block.column||approach.row!==block.row){
+          approach={column:block.column,row:block.row,sign:from<block.column?-1:from>block.column?1:
+            (ball.drop&&ball.drop.isFlipped?1:-1)};
+          this._postApproaches.set(ball,approach);
+        }
+        const sign=approach.sign;
+        this.approachTarget(ball, block.column + sign * (0.415 + RAD + 0.025),
           dr < -0.50 ? block.row - 0.50 - RAD : ball.row);
         return(true);
       }
@@ -288,6 +294,7 @@ export class SchematicBallRouter implements IBallRouter {
     return(true);
   }
 
+  private _postApproaches:WeakMap<Ball,{column:number,row:number,sign:number}> = new WeakMap();
   private _passedLevers:WeakMap<Ball, Turnstile> = new WeakMap();
   protected routeTurnstile(part:Part, ball:Ball):boolean {
     const lever = part as Turnstile;
@@ -298,7 +305,7 @@ export class SchematicBallRouter implements IBallRouter {
       if (ball.row + RAD < surface) return(false);
       this._passedLevers.set(ball, lever);
       lever.registerPass(ball);
-      lever.pulse(this.board.speed, false);
+      lever.pulse(this.board.speed, false, ball);
     }
     // Guide the marble downward through the open inner end, rather than
     // tracing the previous four-spoke rotor's circular pocket.

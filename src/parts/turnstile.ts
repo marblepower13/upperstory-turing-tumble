@@ -135,22 +135,36 @@ export class Turnstile extends Part {
 
   public resetWithoutRelease():void {
     Animator.current.stopAnimating(this, 'rotation');
-    this._schematicPulse = false;this._pulseReturning=false;this.rotation=0;
+    this._schematicPulse = false;this._pulseReturning=false;this._pulseHold=0;this._pulseBalls.clear();this.rotation=0;
   }
 
   // Pulses use simulation steps, so Pause freezes both ends of the linkage.
   private _schematicPulse:boolean = false;
   private _pulseReturning:boolean = false;
+  private _pulseHold:number = 0;
+  private _pulseBalls:Set<Ball> = new Set();
   public get isPulsing():boolean { return this._schematicPulse; }
-  public pulse(speed:number, release:boolean=true):void {
-    if(this._schematicPulse)return;
-    this._schematicPulse=true;this._pulseReturning=false;
+  public pulse(speed:number, release:boolean=true,ball?:Ball):void {
+    if(this._schematicPulse){if(ball)this._pulseBalls.add(ball);return;}
+    this._pulseBalls.clear();if(ball)this._pulseBalls.add(ball);
+    this._schematicPulse=true;this._pulseReturning=false;this._pulseHold=0;
     if(release&&this.drop)this.drop.releaseBall(this);
   }
   public advancePulse(steps:number):void {
     if(!this._schematicPulse||!(steps>0))return;
+    if(this._pulseHold>0){
+      this._pulseHold=Math.max(0,this._pulseHold-steps);
+      if(this._pulseHold===0){
+        const occupied=Array.from(this._pulseBalls).some(ball=>
+          ball.row<=this.row+0.65&&ball.row>=this.row-1&&Math.abs(ball.column-this.column)<5);
+        if(occupied)this._pulseHold=1;
+        else {this._pulseReturning=true;this._pulseBalls.clear();}
+      }
+      return;
+    }
     this.rotation=Math.max(0,Math.min(1,this.rotation+(this._pulseReturning?-1:1)*0.06*steps));
-    if(this.rotation>=1)this._pulseReturning=true;
+    // Keep the exit fully open while gravity carries the marble clear.
+    if(this.rotation>=1&&!this._pulseReturning)this._pulseHold=18;
     if(this._pulseReturning&&this.rotation<=0)this._schematicPulse=false;
   }
 

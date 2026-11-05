@@ -754,6 +754,8 @@ System.register("parts/turnstile", ["pixi.js", "parts/part", "parts/ball", "boar
                     // Pulses use simulation steps, so Pause freezes both ends of the linkage.
                     this._schematicPulse = false;
                     this._pulseReturning = false;
+                    this._pulseHold = 0;
+                    this._pulseBalls = new Set();
                 }
                 get canRotate() { return (true); }
                 get canMirror() { return (false); }
@@ -879,23 +881,46 @@ System.register("parts/turnstile", ["pixi.js", "parts/part", "parts/ball", "boar
                     animator_1.Animator.current.stopAnimating(this, 'rotation');
                     this._schematicPulse = false;
                     this._pulseReturning = false;
+                    this._pulseHold = 0;
+                    this._pulseBalls.clear();
                     this.rotation = 0;
                 }
                 get isPulsing() { return this._schematicPulse; }
-                pulse(speed, release = true) {
-                    if (this._schematicPulse)
+                pulse(speed, release = true, ball) {
+                    if (this._schematicPulse) {
+                        if (ball)
+                            this._pulseBalls.add(ball);
                         return;
+                    }
+                    this._pulseBalls.clear();
+                    if (ball)
+                        this._pulseBalls.add(ball);
                     this._schematicPulse = true;
                     this._pulseReturning = false;
+                    this._pulseHold = 0;
                     if (release && this.drop)
                         this.drop.releaseBall(this);
                 }
                 advancePulse(steps) {
                     if (!this._schematicPulse || !(steps > 0))
                         return;
+                    if (this._pulseHold > 0) {
+                        this._pulseHold = Math.max(0, this._pulseHold - steps);
+                        if (this._pulseHold === 0) {
+                            const occupied = Array.from(this._pulseBalls).some(ball => ball.row <= this.row + 0.65 && ball.row >= this.row - 1 && Math.abs(ball.column - this.column) < 5);
+                            if (occupied)
+                                this._pulseHold = 1;
+                            else {
+                                this._pulseReturning = true;
+                                this._pulseBalls.clear();
+                            }
+                        }
+                        return;
+                    }
                     this.rotation = Math.max(0, Math.min(1, this.rotation + (this._pulseReturning ? -1 : 1) * 0.06 * steps));
-                    if (this.rotation >= 1)
-                        this._pulseReturning = true;
+                    // Keep the exit fully open while gravity carries the marble clear.
+                    if (this.rotation >= 1 && !this._pulseReturning)
+                        this._pulseHold = 18;
                     if (this._pulseReturning && this.rotation <= 0)
                         this._schematicPulse = false;
                 }
@@ -2125,6 +2150,18 @@ System.register("parts/partbody", ["matter-js", "parts/factory", "parts/partvert
 System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/constants"], function (exports_22, context_22) {
     "use strict";
     var __moduleName = context_22 && context_22.id;
+    // Match schematic deflection to the same widened cap and tapered stem.
+    function centerBlockHalfWidth(rowOffset) {
+        const r = Math.max(-0.70, Math.min(0.45, rowOffset));
+        if (r < -0.50)
+            return 0.415 * (r + 0.70) / 0.20;
+        if (r <= -0.10)
+            return 0.415;
+        if (r <= 0.15)
+            return 0.415 + (0.10 - 0.415) * (r + 0.10) / 0.25;
+        return 0.10 + (0.08 - 0.10) * (r - 0.15) / 0.30;
+    }
+    exports_22("centerBlockHalfWidth", centerBlockHalfWidth);
     // Derive fixed dividers from the actual paired bottom levers. This also makes
     // older saved boards acquire the divider without changing their file format.
     function centerBlocks(board) {
@@ -2180,12 +2217,12 @@ System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/c
     function inletCollider(inlet) {
         // Solid backing below the thin visible edge catches fast incoming marbles.
         // It shares the same upper face and never forms an extra visible box.
-        const a = inlet.start, b = inlet.end, t = 0.22 * constants_3.SPACING;
+        const a = inlet.start, b = inlet.end, t = 0.075 * constants_3.SPACING;
         return [{ x: a.x, y: a.y - 0.035 * constants_3.SPACING }, { x: b.x, y: b.y - 0.035 * constants_3.SPACING },
             { x: b.x, y: b.y + t }, { x: a.x, y: a.y + t }];
     }
     exports_22("inletCollider", inletCollider);
-    var fence_3, turnstile_3, constants_3, CENTER_BLOCK_VERTICES;
+    var fence_3, turnstile_3, constants_3, CENTER_BLOCK_VERTICES, CENTER_BLOCK_COLLIDERS;
     return {
         setters: [
             function (fence_3_1) {
@@ -2203,12 +2240,20 @@ System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/c
             // extend into either lever's sweep or the falling-marble exit path.
             exports_22("CENTER_BLOCK_VERTICES", CENTER_BLOCK_VERTICES = [
                 { x: 0, y: -0.70 * constants_3.SPACING },
-                { x: 0.23 * constants_3.SPACING, y: -0.50 * constants_3.SPACING },
-                { x: 0.12 * constants_3.SPACING, y: 0.38 * constants_3.SPACING },
+                { x: 0.415 * constants_3.SPACING, y: -0.50 * constants_3.SPACING },
+                { x: 0.415 * constants_3.SPACING, y: -0.10 * constants_3.SPACING },
+                { x: 0.10 * constants_3.SPACING, y: 0.15 * constants_3.SPACING },
                 { x: 0.08 * constants_3.SPACING, y: 0.45 * constants_3.SPACING },
                 { x: -0.08 * constants_3.SPACING, y: 0.45 * constants_3.SPACING },
-                { x: -0.12 * constants_3.SPACING, y: 0.38 * constants_3.SPACING },
-                { x: -0.23 * constants_3.SPACING, y: -0.50 * constants_3.SPACING }
+                { x: -0.10 * constants_3.SPACING, y: 0.15 * constants_3.SPACING },
+                { x: -0.415 * constants_3.SPACING, y: -0.10 * constants_3.SPACING },
+                { x: -0.415 * constants_3.SPACING, y: -0.50 * constants_3.SPACING }
+            ]);
+            // Convex pieces exactly cover the widened cap and tapered stem. Passing a
+            // concave outline directly to Matter's SAT would incorrectly obstruct the exit.
+            exports_22("CENTER_BLOCK_COLLIDERS", CENTER_BLOCK_COLLIDERS = [
+                [0, 1, 2, 3, 6, 7, 8].map(i => CENTER_BLOCK_VERTICES[i]),
+                [3, 4, 5, 6].map(i => CENTER_BLOCK_VERTICES[i])
             ]);
         }
     };
@@ -2336,11 +2381,11 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                         matter_js_2.World.remove(this.engine.world, body);
                     this._inletBodies = [];
                     for (const block of blocks) {
-                        const vertices = centerblock_1.CENTER_BLOCK_VERTICES.map(v => ({
-                            x: block.column * constants_4.SPACING + v.x, y: block.row * constants_4.SPACING + v.y
-                        }));
-                        const center = matter_js_2.Vertices.centre(vertices);
-                        const body = matter_js_2.Body.create({ vertices: vertices, position: center, isStatic: true,
+                        const parts = centerblock_1.CENTER_BLOCK_COLLIDERS.map(shape => {
+                            const vertices = shape.map(v => ({ x: block.column * constants_4.SPACING + v.x, y: block.row * constants_4.SPACING + v.y }));
+                            return matter_js_2.Body.create({ vertices: vertices, position: matter_js_2.Vertices.centre(vertices) });
+                        });
+                        const body = matter_js_2.Body.create({ parts: parts, isStatic: true,
                             label: 'Fixed center block', friction: 0.02, restitution: 0.02 });
                         this._centerBlockBodies.push(body);
                         matter_js_2.World.add(this.engine.world, body);
@@ -2349,7 +2394,7 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                         const points = centerblock_1.inletCollider(inlet);
                         const body = matter_js_2.Body.create({ vertices: points, position: matter_js_2.Vertices.centre(points), isStatic: true,
                             label: 'Continuous lever inlet', friction: 0.02, restitution: 0.02,
-                            collisionFilter: { category: constants_4.PART_CATEGORY, mask: constants_4.BALL_CATEGORY, group: 0 } });
+                            collisionFilter: { category: constants_4.PART_CATEGORY, mask: constants_4.PART_MASK, group: 0 } });
                         this._inletBodies.push(body);
                         matter_js_2.World.add(this.engine.world, body);
                     }
@@ -2415,7 +2460,7 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                         levers.sort((a, b) => Math.abs(from - a.column) - Math.abs(from - b.column));
                         // A brief strike starts one complete rigid stroke, not an early return.
                         if (levers[0].registerPass(ball))
-                            levers[0].pulse(this.board.speed, false);
+                            levers[0].pulse(this.board.speed, false, ball);
                     }
                     // combine the velocities of connected gear trains
                     this.connectGears(contacts);
@@ -2809,6 +2854,7 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                 constructor(board) {
                     this.board = board;
                     this._initialBitValue = new WeakMap();
+                    this._postApproaches = new WeakMap();
                     this._passedLevers = new WeakMap();
                     this.balls = this.board.balls;
                 }
@@ -2881,11 +2927,17 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                     // an adjacent blade. The post itself never advances the machine.
                     for (const block of centerblock_2.centerBlocks(this.board)) {
                         const dc = ball.column - block.column, dr = ball.row - block.row;
-                        if (Math.abs(dc) < 0.23 + RAD && dr + RAD >= -0.70 && dr <= 0.45 + RAD) {
+                        const width = centerblock_2.centerBlockHalfWidth(dr);
+                        if (Math.abs(dc) < width + RAD && dr + RAD >= -0.70 && dr <= 0.45 + RAD) {
                             const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
-                            const sign = from < block.column ? -1 : from > block.column ? 1 :
-                                (ball.drop && ball.drop.isFlipped ? 1 : -1);
-                            this.approachTarget(ball, block.column + sign * (0.23 + RAD + 0.025), dr < -0.50 ? block.row - 0.50 - RAD : ball.row);
+                            let approach = this._postApproaches.get(ball);
+                            if (!approach || approach.column !== block.column || approach.row !== block.row) {
+                                approach = { column: block.column, row: block.row, sign: from < block.column ? -1 : from > block.column ? 1 :
+                                        (ball.drop && ball.drop.isFlipped ? 1 : -1) };
+                                this._postApproaches.set(ball, approach);
+                            }
+                            const sign = approach.sign;
+                            this.approachTarget(ball, block.column + sign * (0.415 + RAD + 0.025), dr < -0.50 ? block.row - 0.50 - RAD : ball.row);
                             return (true);
                         }
                     }
@@ -3077,7 +3129,7 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                             return (false);
                         this._passedLevers.set(ball, lever);
                         lever.registerPass(ball);
-                        lever.pulse(this.board.speed, false);
+                        lever.pulse(this.board.speed, false, ball);
                     }
                     // Guide the marble downward through the open inner end, rather than
                     // tracing the previous four-spoke rotor's circular pocket.
@@ -4627,8 +4679,10 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         g.endFill();
                         g.lineStyle(Math.max(0.5, scale), 0xffffff, 1);
                         g.moveTo(x, y - 0.66 * this.spacing);
-                        g.lineTo(x - 0.18 * this.spacing, y - 0.49 * this.spacing);
-                        g.lineTo(x - 0.09 * this.spacing, y + 0.34 * this.spacing);
+                        g.lineTo(x - 0.36 * this.spacing, y - 0.49 * this.spacing);
+                        g.lineTo(x - 0.36 * this.spacing, y - 0.13 * this.spacing);
+                        g.lineTo(x - 0.06 * this.spacing, y + 0.15 * this.spacing);
+                        g.lineTo(x - 0.04 * this.spacing, y + 0.40 * this.spacing);
                     }
                     renderer_8.Renderer.needsUpdate();
                 }

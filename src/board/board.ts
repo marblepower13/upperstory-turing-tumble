@@ -224,8 +224,10 @@ export class Board {
       g.endFill();
       g.lineStyle(Math.max(0.5, scale), 0xffffff, 1);
       g.moveTo(x, y - 0.66 * this.spacing);
-      g.lineTo(x - 0.18 * this.spacing, y - 0.49 * this.spacing);
-      g.lineTo(x - 0.09 * this.spacing, y + 0.34 * this.spacing);
+      g.lineTo(x - 0.36 * this.spacing, y - 0.49 * this.spacing);
+      g.lineTo(x - 0.36 * this.spacing, y - 0.13 * this.spacing);
+      g.lineTo(x - 0.06 * this.spacing, y + 0.15 * this.spacing);
+      g.lineTo(x - 0.04 * this.spacing, y + 0.40 * this.spacing);
     }
     Renderer.needsUpdate();
   }

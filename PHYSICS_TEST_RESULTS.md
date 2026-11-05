@@ -1,92 +1,78 @@
-# Upper Story simulator: rigid-lever and reset verification
+# Upper Story simulator: solid slopes and center-block verification
 
 Tested November 5, 2026.
 
-## Current behavior
+## Current correction
 
-The rigid lower lever rotates DOWN about its fixed white hinge; it is not a
-stationary artwork swap or a deformed shape. The same rotation transforms its
-shaft, heel, nose and counterweight. A physical marble collision with detected
-lever movement starts one complete down/return stroke. One passing marble can
-initiate only one linked release. The mirrored top releaser follows that stroke,
-then reloads after returning. A held or busy mechanism cannot repeatedly release.
+The continuous lower white inlet rails now collide with both marble states.
+Previously their filter accepted only the released category, while a marble's
+release flag resets after it leaves the upper supply area. That excluded normal
+board marbles from the lower rails. The corrected filter accepts both categories.
 
-The final lower board slopes are continuous visible rails ending at the wide
-lever heels. Their fixed geometry is shared with the new collision surfaces;
-there are no visible overlay boxes. The center block is fixed and tapers below
-the receiving pocket. Invisible outer guards retain stray marbles. Free-flight,
-interception and collection do not trigger release.
+A marble landing on the white slope is supported on its upper face and rolls
+inward to the exposed black receiving heel. Only a real lower-lever impact can
+advance the machine. The lever pivots rigidly downward, holds the exit open while
+the passing marble clears, and then returns with its linked upper releaser.
+The minimum open dwell and occupancy hold prevent closing onto a passing marble.
+Pause freezes the complete mechanism.
 
-Reset all reconnects new supply instances rather than relying only on their
-coordinates. This prevents old holding cups and misplaced supply marbles after
-same-size resets. Upper and lower visible start controls have a delayed
-'Press to Start' popup. The Upper Story logo is 33% smaller; the Turing Tumble
-logo is 1.5x larger than the previous update.
+The fixed center block is wider at the resting tips and tapers to its lower stem.
+Resting clearance is about 1.23 model units on each side; full-depression clearance
+is about 23.21 units for a 20-unit marble. Its concave outer outline is represented
+by two convex rigid-body pieces, so collision testing matches the drawn profile.
+Schematic deflection matches the new outline and keeps a consistent approach side.
 
-## Verification method
+## Method and results
 
-Checks load the compiled app and its hosted Matter.js 0.14.2 bundle with PIXI
-rendering stubbed. DOM-emulation checks exercise the hosted classroom interface.
-Actual vector drawing commands were rendered separately for resting and pressed
-poses, and the rigid sprite transforms were checked numerically across the
-full sweep. These checks do not constitute a live WebGL/browser layout session.
-The preview browser could not be launched in the available environment earlier;
-live appearance and pointer behavior still need review on the intended devices.
-
-## Results
+Checks use the compiled app with its actual hosted Matter.js 0.14.2 bundle and
+stubbed PIXI rendering. DOM checks exercise hosted classroom controls in DOM
+emulation. Actual vector artwork was inspected at rest and full depression.
+A live WebGL/browser layout session was not completed in this environment;
+final visual and pointer review on the intended devices remains necessary.
 
 | Check | Coverage | Result |
 | --- | --- | --- |
-| Rigid geometry | 606 poses: 101 progress values per side on three standard sizes | Hinge-to-nose/counterweight distances constant; sprite transforms match actual rotation; receiving tip moves downward more than 30 model units |
-| Counterweight clearance | Every sampled pose in the same sweep | Entire visible counterweight cap remains below white slope; minimum margin 6.06 model units |
-| Rail/heel join | Both sides on three sizes | Visible rail ends within 2.5 model units of the top of the widened receiving heel; no added visible boxes |
-| Repeated Reset all | 24 resets across three standard sizes, including mid-cycle resets | Current supplies recognized, all stock on new rails, old cups/slopes hidden, one collider per fixed part and next manual release works |
-| Start targets | Upper disks and lower cap/hinge/nose | Correct hit testing on the complete visible control; start hover event reaches UI |
-| Start popup | Delayed show, hide on empty board, cancellation on board exit | Exact text 'Press to Start'; passed DOM checks |
-| Linked supplies | 8 cases across both colors, 8/20 capacities and physical/schematic modes | Correct seating, mirrored rotation, one accepted press, busy interlock, reload, pause and return |
-| Full machine | 18 combinations: 8/20 per color, blue/red/both starts, speeds 0.25/1/8 | Supply totals, real actuation, collection, settled output and exact order passed |
-| Empty board | 22 runs: both starts at all eleven speeds | All released marbles retained, actuated and collected |
-| Center approaches | 306 physical and 68 schematic cases | One actuation, divider passage and settled collection passed |
-| Blade impacts | 102 position/velocity cases | No missed actuation or stranded marble |
-| Outer-end impacts | 60 outward position/velocity cases | No escape, missed actuation or stranded marble |
-| Output patterns | 88 forty-marble patterns across both modes and eleven speeds | Exact identities/order, spacing, idle stability and silent return |
-| Release isolation | Interceptor, in-flight marble, below-arm marble, absent lower levers, return/reset | No automatic continuation without lower-lever actuation |
-| Other components | Ramp directions, crossover routes, bit, gear-bit train, interceptor | Passed |
-| Register controls | Forty marbles on three sizes, zoom, pause, return and reset | Passed |
-| Interface/build | Instructions/Support, shortcut exclusions, Play/Pause speed restore, logos/link, TypeScript 2.7.2 and JS syntax | Passed; source and hosted assets match |
+| Direct slope landings | 144 cases: both sides, both marble states, four landing positions, entry speeds 0/4/12 and playback 0.25/1/8 | Every marble contacts the rail first, stays above it, rolls inward at least ten model units before actuation, releases once and collects |
+| Tight center pocket | Actual convex collision pieces | Rest gaps 1.23 units; depressed gap 23.21; no fixed-block movement |
+| Center approaches | 306 physical and 68 schematic cases | One actuation, no sticking and collection; penetration measured against the actual convex pieces |
+| Full machine | 18 combinations of 8/20 per color, blue/red/both starts and 0.25/1/8 speed | All supply totals, actuation, settled collection and exact output order passed; final compiled bundle also reran the simultaneous forty-marble case |
+| Empty board | Both starts at eleven speeds (22 runs) | Released marbles retained, actuated and collected |
+| Blade impacts | 102 position/velocity cases | No missed actuation or stranded marbles |
+| Outer ends | 60 position/outward-speed cases | Invisible guards retain stray marbles and the held-open lever lets them clear |
+| Rigid motion | 606 sampled poses across both sides and three standard sizes | Constant hinge distances, real downward tip travel, counterweight stays below the slope with minimum margin 6.06 units |
+| Same-size resets | 24 resets across three standard sizes, including mid-stroke | Correct supplies, no old cups or duplicate slopes, no extra colliders and next release works |
+| Supply linkage | 8 cases covering both colors, 8/20 counts and both modes | Seating, mirrored rotation, one-press/busy protection, reload, pause and return |
+| Output register | 88 forty-marble pattern cases across both modes and eleven speeds | Exact identities/order, spacing, idle stability and silent return |
+| Controls | Three sizes, zoom, pause, return and reset; delayed Press to Start hover | Passed |
+| Other components | Ramps, crossover, bit, gear-bit trains, interceptor and eraser/add-marble controls | Passed |
+| Release isolation | In flight, intercepted, below the levers, absent levers and return/reset | No automatic continuation without lever actuation |
+| Build/assets | TypeScript 2.7.2, hosted JS syntax and matching source/hosted assets | Passed |
 
-At full depression, the minimum divider/lever clearance is about 22.15 model
-units for a 20-unit marble. The nearest visible lower collector-funnel surface
-is about 68.98 units from the tip. The full approach/impact matrices verify
-passage beyond these isolated geometric measurements.
+## Playable ramps preserved
 
-## Ramp preservation
-
-src/parts/ramp.ts, src/parts/partvertices.ts and src/board/constants.ts were
-compared byte-for-byte with the preceding linked-releaser release and are
-unchanged. Edits to shared PartBody remain within Turnstile construction and
-rotation/pulse handling. Playable ramp density, friction, counterweight constants,
-contact assistance and traversal rules were not tuned. Upper/lower staging
-changes can affect arrival timing, independent of playable ramp speed.
+src/parts/ramp.ts, src/parts/partvertices.ts and src/board/constants.ts match the
+preceding rigid-lever release byte-for-byte. Shared PartBody code was also not
+changed by this correction. Playable ramp collision shapes, counterweights,
+friction, density, contact assistance and traversal speed remain unchanged.
+Changes are limited to the lower inlet collision filtering, fixed block profile,
+lower lever clearance/return timing, related drawing and schematic handling.
 
 Compiled docs/app.js SHA-256:
-66a0eeb36579ae1ece21d15e5a2bafb863e3f91ebdc68ffc20250cc00f1aede6
+b62cbb5da2d89ee678ef01f352f386e5d9447cc3133b4b5eca48b672735c53eb
 
-## Live review after uploading
+## Live checks after upload
 
-1. Reset all several times, including while a marble is moving: retain long
-   supply rails without the original holding cups appearing.
-2. Inspect the uninterrupted lower slopes and their joins to the widened heels.
-3. Release a marble and watch the corresponding lower lever pivot DOWN rigidly;
-   verify its counterweight cap stays below the slope and the marble clears.
-4. Hover over top releasers and lower levers: confirm 'Press to Start'. Try
-   clicking the lower counterweight end as well as the receiving end.
-5. Pause during a stroke and resume; verify the two linked ends freeze together.
-6. Check both logo sizes, the lower-left centered product link, tool access and
-   full-board fitting on the classroom display. Verify intended touch devices.
-7. Run a forty-marble sequence and check its final order.
+1. Guide a marble toward several points on each lower white slope. It should
+   land on the slope and roll inward to the exposed black receiving area.
+2. Check that both resting lever tips nearly touch the wider white center block.
+3. Watch a complete stroke: rigid downward movement, one linked top release,
+   clear passage to the output ramps, then return and reload.
+4. Pause while the lever is down, then resume. Reset all several times and check
+   that only the preferred supply rails appear.
+5. Run a forty-marble output and verify its final order. Review classroom screen
+   fitting, hover controls and any intended touch devices.
 
-The forty-marble output guarantee covers standard board configurations. Advanced
-custom mechanisms, live resizing mid-stroke and larger capacities are outside
-that guarantee. The existing serializer format, README, license and third-party
-notices are preserved. No remote code changes or publishing were performed.
+The verified output capacity is forty total marbles on standard board layouts.
+Advanced custom mechanisms, live resizing mid-stroke and larger capacities remain
+outside this guarantee. The serializer format, README, license and third-party
+notices are preserved. No code has been pushed or published.

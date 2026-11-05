@@ -11,11 +11,11 @@ import { Colors, Alphas } from 'ui/config';
 import { Gearbit, GearBase } from 'parts/gearbit';
 import { PartBody, PartBodyFactory } from 'parts/partbody';
 
-import { SPACING, PART_CATEGORY, BALL_CATEGORY } from './constants';
+import { SPACING, PART_CATEGORY, PART_MASK } from './constants';
 import { Animator } from 'ui/animator';
 import { PartType } from 'parts/factory';
 import { Turnstile } from 'parts/turnstile';
-import { centerBlocks, CENTER_BLOCK_VERTICES, leverInlets, inletCollider, isLeverInletPart } from './centerblock';
+import { centerBlocks, CENTER_BLOCK_COLLIDERS, leverInlets, inletCollider, isLeverInletPart } from './centerblock';
 
 export type PartBallContact = {
   ballPartBody: PartBody,
@@ -106,12 +106,12 @@ export class PhysicalBallRouter implements IBallRouter {
     for (const body of this._inletBodies) World.remove(this.engine.world, body);
     this._inletBodies = [];
     for (const block of blocks) {
-      const vertices = CENTER_BLOCK_VERTICES.map(v => ({
-        x: block.column * SPACING + v.x, y: block.row * SPACING + v.y
-      }));
-      const center = Vertices.centre(vertices);
-      const body = Body.create({vertices: vertices, position: center, isStatic: true,
-        label: 'Fixed center block', friction: 0.02, restitution: 0.02});
+      const parts=CENTER_BLOCK_COLLIDERS.map(shape=>{
+        const vertices=shape.map(v=>({x:block.column*SPACING+v.x,y:block.row*SPACING+v.y}));
+        return Body.create({vertices:vertices,position:Vertices.centre(vertices)});
+      });
+      const body = Body.create({parts:parts,isStatic:true,
+        label:'Fixed center block',friction:0.02,restitution:0.02});
       this._centerBlockBodies.push(body);
       World.add(this.engine.world, body);
     }
@@ -119,7 +119,7 @@ export class PhysicalBallRouter implements IBallRouter {
       const points=inletCollider(inlet);
       const body=Body.create({vertices:points,position:Vertices.centre(points),isStatic:true,
         label:'Continuous lever inlet',friction:0.02,restitution:0.02,
-        collisionFilter:{category:PART_CATEGORY,mask:BALL_CATEGORY,group:0}});
+        collisionFilter:{category:PART_CATEGORY,mask:PART_MASK,group:0}});
       this._inletBodies.push(body);World.add(this.engine.world,body);
     }
     return true;
@@ -181,7 +181,7 @@ export class PhysicalBallRouter implements IBallRouter {
       const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
       levers.sort((a, b) => Math.abs(from - a.column) - Math.abs(from - b.column));
       // A brief strike starts one complete rigid stroke, not an early return.
-      if(levers[0].registerPass(ball))levers[0].pulse(this.board.speed,false);
+      if(levers[0].registerPass(ball))levers[0].pulse(this.board.speed,false,ball);
     }
     // combine the velocities of connected gear trains
     this.connectGears(contacts);
