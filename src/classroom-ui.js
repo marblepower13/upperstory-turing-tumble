@@ -25,8 +25,8 @@
   ui.innerHTML = '<h1 id="simulator-title"><img src="images/turing-tumble-logo.png" alt="Turing Tumble"></h1><aside class="sidebar left" aria-label="Building tools"><div id="instructions-slot"></div><section class="panel" id="tools"><h2>TOOLS</h2></section><section class="panel" id="parts"><h2>PARTS</h2></section></aside><div class="brand"><img src="images/upper-story-logo.png" alt="Upper Story"><a href="https://www.upperstory.com/en/turingtumble/" target="_blank" rel="noopener noreferrer">Learn More About Turing Tumble</a></div><aside class="sidebar right" aria-label="Simulation controls"><div id="reset-slot"></div><section class="panel" id="actions"></section><div class="bottom" id="more"></div></aside><div id="transport" aria-label="Playback controls"></div><div id="tooltip" role="tooltip" hidden></div><div id="status" role="status" aria-live="polite"></div>';
   document.body.appendChild(ui);
   const tooltip = ui.querySelector('#tooltip');
-  let tipOwner = null, tipTimer = 0, statusTimer = 0;
-  function hideTip() { clearTimeout(tipTimer); tooltip.hidden = true; if (tipOwner) tipOwner.removeAttribute('aria-describedby'); tipOwner = null; }
+  let tipOwner = null, tipTimer = 0, statusTimer = 0, boardTipActive = false;
+  function hideTip() { boardTipActive = false; clearTimeout(tipTimer); tooltip.hidden = true; if (tipOwner) tipOwner.removeAttribute('aria-describedby'); tipOwner = null; }
   function showTip(el) {
     hideTip(); tipOwner = el;
     tipTimer = setTimeout(() => {
@@ -52,6 +52,23 @@
   window.addEventListener('resize', hideTip);
   window.addEventListener('simulator-ready', function (event) {
     const sim = event.detail.sim, Builder = event.detail.BoardBuilder, board = sim.board, bar = sim.actionbar;
+    let boardTipX=0,boardTipY=0;
+    function positionBoardTip(){
+      const t=tooltip.getBoundingClientRect();
+      tooltip.style.left=Math.max(8,Math.min(boardTipX+14,innerWidth-t.width-8))+'px';
+      tooltip.style.top=Math.max(8,Math.min(boardTipY+16,innerHeight-t.height-8))+'px';
+    }
+    board.onStartControlHover=(active,x,y)=>{
+      if(!active){if(boardTipActive)hideTip();return;}
+      boardTipX=x;boardTipY=y;
+      if(boardTipActive){if(!tooltip.hidden)positionBoardTip();return;}
+      hideTip();boardTipActive=true;
+      tipTimer=setTimeout(()=>{if(!boardTipActive)return;tooltip.textContent='Press to Start';tooltip.hidden=false;positionBoardTip();},350);
+    };
+    const boardSurface=document.querySelector('#container');
+    boardSurface.addEventListener('pointerleave',()=>{if(boardTipActive)hideTip();});
+    boardSurface.addEventListener('pointerdown',hideTip);
+    window.addEventListener('blur',hideTip);
     sim.classroomControls = true; sim.refreshLayout();
     const toolButtons = [];
     let lastPlayingSpeed = board.speed || 1;

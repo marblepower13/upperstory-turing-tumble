@@ -735,9 +735,9 @@ System.register("parts/turnstile", ["pixi.js", "parts/part", "parts/ball", "boar
             // Retain the serialized Turnstile type so existing board links still load.
             // Geometry and motion now represent one pivoting release lever, not a rotor.
             exports_14("LEVER_PIVOT_OFFSET", LEVER_PIVOT_OFFSET = 1.0 * constants_1.SPACING);
-            exports_14("LEVER_TIP", LEVER_TIP = LEVER_PIVOT_OFFSET + (0.71 * constants_1.SPACING));
+            exports_14("LEVER_TIP", LEVER_TIP = LEVER_PIVOT_OFFSET + (0.54 * constants_1.SPACING));
             exports_14("LEVER_REST_ANGLE", LEVER_REST_ANGLE = -0.09);
-            exports_14("LEVER_TRAVEL", LEVER_TRAVEL = 0.65);
+            exports_14("LEVER_TRAVEL", LEVER_TRAVEL = 0.33);
             // Raised outer rim catches outward-rolling marbles. Shared with the collider.
             exports_14("LEVER_OUTER_END", LEVER_OUTER_END = -40 - 1.6 * constants_1.SPACING);
             exports_14("LEVER_RIM_INNER", LEVER_RIM_INNER = -32 - 1.6 * constants_1.SPACING);
@@ -786,14 +786,16 @@ System.register("parts/turnstile", ["pixi.js", "parts/part", "parts/ball", "boar
                         g.beginFill(0x282c2e);
                         g.moveTo(LEVER_COUNTERWEIGHT + 15, -6);
                         g.lineTo(LEVER_TIP - 38, -6);
-                        g.quadraticCurveTo(LEVER_TIP - 29, -7, LEVER_TIP - 22, -11);
-                        g.lineTo(LEVER_TIP - 9, -10);
-                        // Shallow receiving cup with a raised nose and widened heel.
-                        g.quadraticCurveTo(LEVER_TIP - 9, -3, LEVER_TIP + 2, -5);
-                        g.lineTo(LEVER_TIP + 2, 5);
-                        g.quadraticCurveTo(LEVER_TIP - 9, 3, LEVER_TIP - 9, 10);
-                        g.lineTo(LEVER_TIP - 22, 11);
-                        g.quadraticCurveTo(LEVER_TIP - 29, 7, LEVER_TIP - 38, 6);
+                        g.quadraticCurveTo(LEVER_TIP - 30, -6, LEVER_TIP - 25, -10);
+                        g.lineTo(LEVER_TIP - 14, -10);
+                        // The widened receiving heel tapers into one short, straight nose.
+                        g.quadraticCurveTo(LEVER_TIP - 12, -4, LEVER_TIP - 7, -4);
+                        g.lineTo(LEVER_TIP + 2, -4);
+                        g.lineTo(LEVER_TIP + 2, 4);
+                        g.lineTo(LEVER_TIP - 7, 4);
+                        g.quadraticCurveTo(LEVER_TIP - 12, 4, LEVER_TIP - 14, 10);
+                        g.lineTo(LEVER_TIP - 25, 10);
+                        g.quadraticCurveTo(LEVER_TIP - 30, 6, LEVER_TIP - 38, 6);
                         g.lineTo(LEVER_COUNTERWEIGHT + 15, 6);
                         g.closePath();
                         g.endFill();
@@ -851,15 +853,27 @@ System.register("parts/turnstile", ["pixi.js", "parts/part", "parts/ball", "boar
                     sprite.alpha = this.alpha;
                     renderer_2.Renderer.needsUpdate();
                 }
+                // Hit the visible rigid lever, including its distant counterweight end.
+                hitTest(column, row) {
+                    const sign = this.isFlipped ? -1 : 1, a = this.angleForRotation(this.rotation);
+                    const dx = (column - this.column) * constants_1.SPACING + sign * LEVER_PIVOT_OFFSET;
+                    const dy = (row - this.row) * constants_1.SPACING;
+                    const x = sign * (dx * Math.cos(a) + dy * Math.sin(a));
+                    const y = -dx * Math.sin(a) + dy * Math.cos(a), margin = 5;
+                    if (Math.pow(x - LEVER_COUNTERWEIGHT, 2) + y * y <= Math.pow(24 + margin, 2))
+                        return true;
+                    return x >= LEVER_COUNTERWEIGHT + 15 - margin && x <= LEVER_TIP + 2 + margin && Math.abs(y) <= 11 + margin;
+                }
                 get hue() { return (this._centerBall.hue); }
                 set hue(v) { this._centerBall.hue = v; this._updateSprites(); }
                 registerPass(ball) {
                     if (ball.hasActuatedLever || this._passed.has(ball))
-                        return;
+                        return false;
                     ball.hasActuatedLever = true;
                     this._passed.add(ball);
                     if (this.drop)
                         this.drop.releaseBall(this);
+                    return true;
                 }
                 resetWithoutRelease() {
                     animator_1.Animator.current.stopAnimating(this, 'rotation');
@@ -2108,7 +2122,7 @@ System.register("parts/partbody", ["matter-js", "parts/factory", "parts/partvert
         }
     };
 });
-System.register("board/centerblock", ["parts/turnstile", "board/constants"], function (exports_22, context_22) {
+System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/constants"], function (exports_22, context_22) {
     "use strict";
     var __moduleName = context_22 && context_22.id;
     // Derive fixed dividers from the actual paired bottom levers. This also makes
@@ -2130,18 +2144,53 @@ System.register("board/centerblock", ["parts/turnstile", "board/constants"], fun
         return blocks;
     }
     exports_22("centerBlocks", centerBlocks);
-    // Short, flush continuations of the lower board ramps meet the widened lever
-    // heels at rest; they leave the receiving cups and downward sweep clear.
-    function leverInletVertices(block) {
-        return [-1, 1].map(sign => [
-            { x: 1.54, y: -0.565 }, { x: 0.84, y: -0.215 },
-            { x: 0.86, y: 0.02 }, { x: 1.54, y: -0.25 }
-        ].map(p => ({ x: (block.column + sign * p.x) * constants_3.SPACING, y: (block.row + p.y) * constants_3.SPACING })));
+    // Replace the last continuous slope run with one uninterrupted rail ending at
+    // the wide lever heel. Endpoints are derived from the rigid lever at rest.
+    function leverInlets(board) {
+        const result = [];
+        for (const block of centerBlocks(board))
+            for (const sign of [1, -1]) {
+                const lever = board.getPart(block.column - sign, block.row);
+                const parts = [];
+                let c = lever.column - sign;
+                while (true) {
+                    const p = board.getPart(c, lever.row - 1);
+                    if (!(p instanceof fence_3.Slope) || !p.isLocked || p.isFlipped !== lever.isFlipped)
+                        break;
+                    parts.push(p);
+                    c -= sign;
+                }
+                if (!parts.length)
+                    continue;
+                const first = parts[parts.length - 1];
+                const u = turnstile_3.LEVER_TIP - 22, v = -11, a = turnstile_3.LEVER_REST_ANGLE;
+                const start = { x: (first.column - sign * 0.5) * constants_3.SPACING, y: (first.row - 0.5) * constants_3.SPACING };
+                const end = { x: lever.column * constants_3.SPACING - sign * turnstile_3.LEVER_PIVOT_OFFSET + sign * (u * Math.cos(a) - v * Math.sin(a)),
+                    y: lever.row * constants_3.SPACING + u * Math.sin(a) + v * Math.cos(a) - 0.035 * constants_3.SPACING };
+                result.push({ lever: lever, parts: parts, start: start, end: end });
+            }
+        return result;
     }
-    exports_22("leverInletVertices", leverInletVertices);
-    var turnstile_3, constants_3, CENTER_BLOCK_VERTICES;
+    exports_22("leverInlets", leverInlets);
+    function isLeverInletPart(board, part) {
+        return !!part && part instanceof fence_3.Slope && part.isLocked &&
+            leverInlets(board).some(inlet => inlet.parts.indexOf(part) >= 0);
+    }
+    exports_22("isLeverInletPart", isLeverInletPart);
+    function inletCollider(inlet) {
+        // Solid backing below the thin visible edge catches fast incoming marbles.
+        // It shares the same upper face and never forms an extra visible box.
+        const a = inlet.start, b = inlet.end, t = 0.22 * constants_3.SPACING;
+        return [{ x: a.x, y: a.y - 0.035 * constants_3.SPACING }, { x: b.x, y: b.y - 0.035 * constants_3.SPACING },
+            { x: b.x, y: b.y + t }, { x: a.x, y: a.y + t }];
+    }
+    exports_22("inletCollider", inletCollider);
+    var fence_3, turnstile_3, constants_3, CENTER_BLOCK_VERTICES;
     return {
         setters: [
+            function (fence_3_1) {
+                fence_3 = fence_3_1;
+            },
             function (turnstile_3_1) {
                 turnstile_3 = turnstile_3_1;
             },
@@ -2155,10 +2204,10 @@ System.register("board/centerblock", ["parts/turnstile", "board/constants"], fun
             exports_22("CENTER_BLOCK_VERTICES", CENTER_BLOCK_VERTICES = [
                 { x: 0, y: -0.70 * constants_3.SPACING },
                 { x: 0.23 * constants_3.SPACING, y: -0.50 * constants_3.SPACING },
-                { x: 0.23 * constants_3.SPACING, y: 0.38 * constants_3.SPACING },
-                { x: 0.18 * constants_3.SPACING, y: 0.45 * constants_3.SPACING },
-                { x: -0.18 * constants_3.SPACING, y: 0.45 * constants_3.SPACING },
-                { x: -0.23 * constants_3.SPACING, y: 0.38 * constants_3.SPACING },
+                { x: 0.12 * constants_3.SPACING, y: 0.38 * constants_3.SPACING },
+                { x: 0.08 * constants_3.SPACING, y: 0.45 * constants_3.SPACING },
+                { x: -0.08 * constants_3.SPACING, y: 0.45 * constants_3.SPACING },
+                { x: -0.12 * constants_3.SPACING, y: 0.38 * constants_3.SPACING },
                 { x: -0.23 * constants_3.SPACING, y: -0.50 * constants_3.SPACING }
             ]);
         }
@@ -2275,7 +2324,8 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                 }
                 _syncCenterBlocks() {
                     const blocks = centerblock_1.centerBlocks(this.board);
-                    const signature = blocks.map(b => b.column + ',' + b.row).join(';');
+                    const inlets = centerblock_1.leverInlets(this.board);
+                    const signature = blocks.map(b => b.column + ',' + b.row).join(';') + ':' + inlets.map(i => [i.start.x, i.start.y, i.end.x, i.end.y].join(',')).join(';');
                     if (signature === this._centerBlockSignature)
                         return false;
                     this._centerBlockSignature = signature;
@@ -2294,13 +2344,14 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                             label: 'Fixed center block', friction: 0.02, restitution: 0.02 });
                         this._centerBlockBodies.push(body);
                         matter_js_2.World.add(this.engine.world, body);
-                        for (const points of centerblock_1.leverInletVertices(block)) {
-                            const inlet = matter_js_2.Body.create({ vertices: points, position: matter_js_2.Vertices.centre(points), isStatic: true,
-                                label: 'Flush lever inlet', friction: 0.02, restitution: 0.02,
-                                collisionFilter: { category: constants_4.PART_CATEGORY, mask: constants_4.BALL_CATEGORY, group: 0 } });
-                            this._inletBodies.push(inlet);
-                            matter_js_2.World.add(this.engine.world, inlet);
-                        }
+                    }
+                    for (const inlet of inlets) {
+                        const points = centerblock_1.inletCollider(inlet);
+                        const body = matter_js_2.Body.create({ vertices: points, position: matter_js_2.Vertices.centre(points), isStatic: true,
+                            label: 'Continuous lever inlet', friction: 0.02, restitution: 0.02,
+                            collisionFilter: { category: constants_4.PART_CATEGORY, mask: constants_4.BALL_CATEGORY, group: 0 } });
+                        this._inletBodies.push(body);
+                        matter_js_2.World.add(this.engine.world, body);
                     }
                     return true;
                 }
@@ -2348,7 +2399,7 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                     const actuations = new Map();
                     for (const [partBody, hits] of contacts.entries()) {
                         const lever = partBody.part;
-                        if (!(lever instanceof turnstile_4.Turnstile) || lever.rotation < 0.55)
+                        if (!(lever instanceof turnstile_4.Turnstile) || lever.rotation <= 0.0001)
                             continue;
                         for (const hit of hits) {
                             const ball = hit.ballPartBody.part;
@@ -2362,7 +2413,9 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                         // side to choose one lever; never release from both for the same marble.
                         const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
                         levers.sort((a, b) => Math.abs(from - a.column) - Math.abs(from - b.column));
-                        levers[0].registerPass(ball);
+                        // A brief strike starts one complete rigid stroke, not an early return.
+                        if (levers[0].registerPass(ball))
+                            levers[0].pulse(this.board.speed, false);
                     }
                     // combine the velocities of connected gear trains
                     this.connectGears(contacts);
@@ -2554,7 +2607,7 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                         for (let c = -1; c <= 1; c++) {
                             for (let r = -1; r <= 1; r++) {
                                 const part = this.board.getPart(column + c, row + r);
-                                if (!part || this.board.outputRegister.replaces(part) || this.board.supplyGuide.replaces(part))
+                                if (!part || this.board.outputRegister.replaces(part) || this.board.supplyGuide.replaces(part) || centerblock_1.isLeverInletPart(this.board, part))
                                     continue;
                                 addParts.add(part);
                                 removeParts.delete(part);
@@ -2717,7 +2770,7 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
 System.register("board/schematic", ["matter-js", "board/constants", "parts/fence", "parts/gearbit", "parts/turnstile", "board/centerblock"], function (exports_24, context_24) {
     "use strict";
     var __moduleName = context_24 && context_24.id;
-    var matter_js_3, constants_5, fence_3, gearbit_3, turnstile_5, centerblock_2, RAD, DIAM, DIAM_2, FENCE, STEP, EXIT, SchematicBallRouter;
+    var matter_js_3, constants_5, fence_4, gearbit_3, turnstile_5, centerblock_2, RAD, DIAM, DIAM_2, FENCE, STEP, EXIT, SchematicBallRouter;
     return {
         setters: [
             function (matter_js_3_1) {
@@ -2726,8 +2779,8 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
             function (constants_5_1) {
                 constants_5 = constants_5_1;
             },
-            function (fence_3_1) {
-                fence_3 = fence_3_1;
+            function (fence_4_1) {
+                fence_4 = fence_4_1;
             },
             function (gearbit_3_1) {
                 gearbit_3 = gearbit_3_1;
@@ -2846,7 +2899,7 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                             const dc = (ball.column - lever.column) * (lever.isFlipped ? -1 : 1);
                             const along = dc + (turnstile_5.LEVER_PIVOT_OFFSET / constants_5.SPACING);
                             const surface = lever.row + (Math.sin(turnstile_5.LEVER_REST_ANGLE) * along);
-                            if (along >= -24 / constants_5.SPACING && along <= (turnstile_5.LEVER_TIP + 2) / constants_5.SPACING &&
+                            if (along >= -24 / constants_5.SPACING && along <= (turnstile_5.LEVER_TIP + 2) / constants_5.SPACING + RAD &&
                                 ball.row + RAD >= surface && ball.row <= lever.row + 0.5) {
                                 candidates.push(lever);
                             }
@@ -2974,7 +3027,7 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                     return (this.routeFreefall(ball));
                 }
                 routeSlope(part, ball) {
-                    if (!(part instanceof fence_3.Slope))
+                    if (!(part instanceof fence_4.Slope))
                         return (false);
                     // get the ball's row and column as a percentage of the part area
                     const r = ball.row - (part.row - 0.5);
@@ -3862,7 +3915,8 @@ System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants"
                     if (eligible.length !== 2 || eligible[0].isFlipped === eligible[1].isFlipped || eligible[0].row !== eligible[1].row)
                         eligible.length = 0;
                     const signature = eligible.map(d => d.column + ',' + d.row + ',' + d.isFlipped).join(';') + ':' + this.board.columnCount;
-                    if (signature !== this.signature) {
+                    if (signature !== this.signature || eligible.length !== this.supplies.length ||
+                        eligible.some((drop, i) => drop !== this.supplies[i])) {
                         for (const [drop, override] of this.overrides)
                             if (drop.releaseOverride === override)
                                 drop.releaseOverride = null;
@@ -4311,14 +4365,14 @@ System.register("ui/keyboard", [], function (exports_29, context_29) {
 System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", "ui/config", "util/disjoint", "renderer", "parts/ball", "board/constants", "board/physics", "board/schematic", "parts/drop", "board/controls", "ui/animator", "parts/turnstile", "board/centerblock", "board/supplyguide", "board/outputregister", "ui/keyboard"], function (exports_30, context_30) {
     "use strict";
     var __moduleName = context_30 && context_30.id;
-    var filter, fence_4, gearbit_4, config_3, disjoint_1, renderer_8, ball_5, constants_8, physics_1, schematic_1, drop_5, controls_1, animator_4, turnstile_6, centerblock_4, supplyguide_1, outputregister_1, keyboard_1, SPACING_FACTOR, Board;
+    var filter, fence_5, gearbit_4, config_3, disjoint_1, renderer_8, ball_5, constants_8, physics_1, schematic_1, drop_5, controls_1, animator_4, turnstile_6, centerblock_4, supplyguide_1, outputregister_1, keyboard_1, SPACING_FACTOR, Board;
     return {
         setters: [
             function (filter_1) {
                 filter = filter_1;
             },
-            function (fence_4_1) {
-                fence_4 = fence_4_1;
+            function (fence_5_1) {
+                fence_5 = fence_5_1;
             },
             function (gearbit_4_1) {
                 gearbit_4 = gearbit_4_1;
@@ -4514,7 +4568,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         row = this._grid[r];
                         for (c = cMinGrid; c < cMaxGrid; c++) {
                             part = row[c];
-                            if (part && !this.outputRegister.replaces(part) && !this.supplyGuide.replaces(part))
+                            if (part && !this.outputRegister.replaces(part) && !this.supplyGuide.replaces(part) && !centerblock_4.isLeverInletPart(this, part))
                                 visible.add(part);
                         }
                     }
@@ -4549,21 +4603,22 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 }
                 _drawCenterBlocks() {
                     const blocks = centerblock_4.centerBlocks(this);
-                    const signature = this.spacing + ':' + blocks.map(b => b.column + ',' + b.row).join(';');
+                    const inlets = centerblock_4.leverInlets(this);
+                    const signature = this.spacing + ':' + blocks.map(b => b.column + ',' + b.row).join(';') + ':' + inlets.map(i => [i.start.x, i.start.y, i.end.x, i.end.y].join(',')).join(';');
                     if (signature === this._centerBlockDrawingSignature)
                         return;
                     this._centerBlockDrawingSignature = signature;
                     const g = this._centerBlockView;
                     g.clear();
                     const scale = this.spacing / constants_8.SPACING;
-                    for (const block of blocks) {
-                        for (const vertices of centerblock_4.leverInletVertices(block)) {
-                            g.lineStyle(Math.max(0.5, scale), 0xb7bec1, 1);
-                            g.beginFill(0xfafaf8);
-                            g.drawPolygon(vertices.map(v => [this.xForColumn(v.x / constants_8.SPACING), this.yForRow(v.y / constants_8.SPACING)])
-                                .reduce((a, p) => a.concat(p), []));
-                            g.endFill();
+                    for (const inlet of inlets) {
+                        for (const style of [[0.075, 0xb7bec1], [0.038, 0xfafaf8]]) {
+                            g.lineStyle(style[0] * this.spacing, style[1], 1);
+                            g.moveTo(inlet.start.x * scale, inlet.start.y * scale);
+                            g.lineTo(inlet.end.x * scale, inlet.end.y * scale);
                         }
+                    }
+                    for (const block of blocks) {
                         const x = this.xForColumn(block.column), y = this.yForRow(block.row);
                         g.lineStyle(Math.max(0.5, scale), 0xc7cccf, 1);
                         g.beginFill(0xf9f9f7);
@@ -4573,7 +4628,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         g.lineStyle(Math.max(0.5, scale), 0xffffff, 1);
                         g.moveTo(x, y - 0.66 * this.spacing);
                         g.lineTo(x - 0.18 * this.spacing, y - 0.49 * this.spacing);
-                        g.lineTo(x - 0.18 * this.spacing, y + 0.34 * this.spacing);
+                        g.lineTo(x - 0.09 * this.spacing, y + 0.34 * this.spacing);
                     }
                     renderer_8.Renderer.needsUpdate();
                 }
@@ -5211,7 +5266,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         }
                     }
                     // update fences
-                    if ((oldPart instanceof fence_4.Slope) || (newPart instanceof fence_4.Slope)) {
+                    if ((oldPart instanceof fence_5.Slope) || (newPart instanceof fence_5.Slope)) {
                         if (!this.bulkUpdate)
                             this._connectSlopes();
                     }
@@ -5245,7 +5300,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 // flip the part at the given coordinates
                 flipPart(column, row) {
                     const part = this.getPart(column, row);
-                    if ((part instanceof fence_4.Slope) || (part instanceof fence_4.Side)) {
+                    if ((part instanceof fence_5.Slope) || (part instanceof fence_5.Side)) {
                         this._flipFence(column, row);
                     }
                     else if (part)
@@ -5366,7 +5421,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                                     }
                                 }
                             }
-                            else if (part instanceof fence_4.Slope) {
+                            else if (part instanceof fence_5.Slope) {
                                 const left = part.sequence / part.modulus;
                                 const right = (part.sequence + 1) / part.modulus;
                                 const sign = part.isFlipped ? -1 : 1;
@@ -5575,7 +5630,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     let slopes = [];
                     for (const row of this._grid) {
                         for (const part of row) {
-                            if (part instanceof fence_4.Slope) {
+                            if (part instanceof fence_5.Slope) {
                                 if ((slopes.length > 0) &&
                                     (slopes[0].isFlipped !== part.isFlipped)) {
                                     this._makeSlope(slopes);
@@ -5605,7 +5660,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 // flip a fence part
                 _flipFence(column, row) {
                     const part = this.getPart(column, row);
-                    if ((!(part instanceof fence_4.Slope)) && (!(part instanceof fence_4.Side)))
+                    if ((!(part instanceof fence_5.Slope)) && (!(part instanceof fence_5.Side)))
                         return;
                     const wasFlipped = part.isFlipped;
                     const type = part.type;
@@ -5618,7 +5673,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         }
                         return (false);
                     };
-                    if (part instanceof fence_4.Slope) {
+                    if (part instanceof fence_5.Slope) {
                         // go right
                         for (let c = column + 1; c < this._columnCount; c++) {
                             if (!shouldContinue(this.getPart(c, row)))
@@ -5630,7 +5685,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                                 break;
                         }
                     }
-                    else if (part instanceof fence_4.Side) {
+                    else if (part instanceof fence_5.Side) {
                         // go down
                         for (let r = row + 1; r < this._rowCount; r++) {
                             if (!shouldContinue(this.getPart(column, r)))
@@ -5693,6 +5748,8 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     this.view.addListener('mousemove', this._onMouseMove.bind(this));
                     this.view.addListener('mouseup', this._onMouseUp.bind(this));
                     this.view.addListener('click', this._onClick.bind(this));
+                    this.view.addListener('mouseout', () => { if (this.onStartControlHover)
+                        this.onStartControlHover(false, 0, 0); });
                     this.view.addListener('touchstart', this._onMouseDown.bind(this));
                     this.view.addListener('touchmove', this._onMouseMove.bind(this));
                     this.view.addListener('touchend', this._onMouseUp.bind(this));
@@ -5893,6 +5950,16 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         this._updateResizeOverlay(false, this._actionSide, 0);
                     }
                 }
+                startControlAt(column, row) {
+                    const drop = this.supplyGuide.buttonAt(column, row);
+                    if (drop)
+                        return drop;
+                    for (const supply of this.drops)
+                        for (const lever of supply.turnstiles)
+                            if (this.getPart(lever.column, lever.row) === lever && lever.hitTest(column, row))
+                                return lever;
+                    return null;
+                }
                 _updateAction(e) {
                     let cursor = 'auto';
                     let c, r, column, row;
@@ -5914,14 +5981,14 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     const oldActionPart = this._actionPart;
                     this._actionPart = this.getPart(column, row);
                     let ball;
-                    const releaser = this.supplyGuide.buttonAt(c, r);
+                    const startControl = this.startControlAt(c, r);
                     if (this.tool === 1 /* PART */ && this.partPrototype && this.partPrototype.type === 9 /* BALL */ && this.marbleSupplyAt(c, r)) {
                         this._action = 2 /* PLACE_BALL */;
                         cursor = 'pointer';
                     }
-                    else if (releaser) {
-                        this._action = 7 /* DROP_BALL */;
-                        this._actionPart = releaser;
+                    else if (startControl) {
+                        this._action = startControl instanceof turnstile_6.Turnstile ? 8 /* TURN_TURNSTILE */ : 7 /* DROP_BALL */;
+                        this._actionPart = startControl;
                         cursor = 'pointer';
                     }
                     else if (this._controlKeyDown) {
@@ -6011,18 +6078,10 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                             this._hideControl(this._dropButton);
                             this._hideControl(this._colorWheel);
                         }
-                        // show/hide turnstile controls
-                        if ((this._actionPart instanceof turnstile_6.Turnstile) &&
-                            (this.tool == 3 /* HAND */)) {
-                            this._turnButton.x = this.xForColumn(this._actionPart.column);
-                            this._turnButton.y = this.yForRow(this._actionPart.row);
-                            this._turnButton.isFlipped = this._actionPart.isFlipped;
-                            this._turnButton.size = this.controlSize;
-                            this._showControl(this._turnButton);
-                        }
-                        else if (oldActionPart instanceof turnstile_6.Turnstile) {
+                        // The rigid lever itself is clickable; use the text popup rather than
+                        // overlaying a legacy floating rotor button on its receiving area.
+                        if (this._turnButton.visible)
                             this._hideControl(this._turnButton);
-                        }
                         // show hide the ball counter
                         if ((this._action === 2 /* PLACE_BALL */) &&
                             (this._ballCounter.drop = // intentional assignment
@@ -6035,6 +6094,11 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         else if (this._ballCounter.visible) {
                             this._hideControl(this._ballCounter);
                         }
+                    }
+                    if (this.onStartControlHover && e) {
+                        const mouse = e.data.originalEvent;
+                        const active = this._action === 7 /* DROP_BALL */ || this._action === 8 /* TURN_TURNSTILE */;
+                        this.onStartControlHover(active && mouse && typeof mouse.clientX === 'number', mouse ? mouse.clientX : 0, mouse ? mouse.clientY : 0);
                     }
                     this._updatePreview();
                 }
@@ -6487,11 +6551,11 @@ System.register("ui/toolbar", ["pixi.js", "ui/button", "renderer"], function (ex
 System.register("board/builder", ["parts/fence"], function (exports_33, context_33) {
     "use strict";
     var __moduleName = context_33 && context_33.id;
-    var fence_5, BoardBuilder;
+    var fence_6, BoardBuilder;
     return {
         setters: [
-            function (fence_5_1) {
-                fence_5 = fence_5_1;
+            function (fence_6_1) {
+                fence_6 = fence_6_1;
             }
         ],
         execute: function () {
@@ -6504,7 +6568,7 @@ System.register("board/builder", ["parts/fence"], function (exports_33, context_
                     const redColumn = center + Math.floor(redBlueDistance / 2);
                     const dropLevel = (blueColumn % 2 == 0) ? 1 : 2;
                     const collectLevel = dropLevel + verticalDrop;
-                    const steps = Math.ceil(center / fence_5.Slope.maxModulus);
+                    const steps = Math.ceil(center / fence_6.Slope.maxModulus);
                     const maxModulus = Math.ceil(center / steps);
                     const height = collectLevel + steps + 4;
                     board.bulkUpdate = true;
@@ -6566,19 +6630,19 @@ System.register("board/builder", ["parts/fence"], function (exports_33, context_
                     for (r = collectLevel; r < height; r++) {
                         for (c = 0; c < width; c++) {
                             const p = board.getPart(c, r);
-                            if ((p instanceof fence_5.Side) || (p instanceof fence_5.Slope))
+                            if ((p instanceof fence_6.Side) || (p instanceof fence_6.Slope))
                                 break;
                             board.setPart(board.partFactory.copy(blank), c, r);
                         }
                         for (c = width - 1; c >= 0; c--) {
                             const p = board.getPart(c, r);
-                            if ((p instanceof fence_5.Side) || (p instanceof fence_5.Slope))
+                            if ((p instanceof fence_6.Side) || (p instanceof fence_6.Slope))
                                 break;
                             board.setPart(board.partFactory.copy(blank), c, r);
                         }
                     }
                     // make a fence to collect balls
-                    const rightSide = center + fence_5.Slope.maxModulus;
+                    const rightSide = center + fence_6.Slope.maxModulus;
                     for (c = center; c < rightSide; c++) {
                         board.setPart(board.partFactory.copy(slope), c, height - 1);
                         board.setPart(board.partFactory.copy(flippedSlope), c, height - 3);

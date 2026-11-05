@@ -15,7 +15,7 @@ import { SPACING, PART_CATEGORY, BALL_CATEGORY } from './constants';
 import { Animator } from 'ui/animator';
 import { PartType } from 'parts/factory';
 import { Turnstile } from 'parts/turnstile';
-import { centerBlocks, CENTER_BLOCK_VERTICES, leverInletVertices } from './centerblock';
+import { centerBlocks, CENTER_BLOCK_VERTICES, leverInlets, inletCollider, isLeverInletPart } from './centerblock';
 
 export type PartBallContact = {
   ballPartBody: PartBody,
@@ -97,7 +97,8 @@ export class PhysicalBallRouter implements IBallRouter {
   private _centerBlockSignature:string = '';
   private _syncCenterBlocks():boolean {
     const blocks = centerBlocks(this.board);
-    const signature = blocks.map(b => b.column + ',' + b.row).join(';');
+    const inlets=leverInlets(this.board);
+    const signature = blocks.map(b => b.column + ',' + b.row).join(';')+':'+inlets.map(i=>[i.start.x,i.start.y,i.end.x,i.end.y].join(',')).join(';');
     if (signature === this._centerBlockSignature) return false;
     this._centerBlockSignature = signature;
     for (const body of this._centerBlockBodies) World.remove(this.engine.world, body);
@@ -113,12 +114,13 @@ export class PhysicalBallRouter implements IBallRouter {
         label: 'Fixed center block', friction: 0.02, restitution: 0.02});
       this._centerBlockBodies.push(body);
       World.add(this.engine.world, body);
-      for (const points of leverInletVertices(block)) {
-        const inlet = Body.create({vertices:points,position:Vertices.centre(points),isStatic:true,
-          label:'Flush lever inlet',friction:0.02,restitution:0.02,
-          collisionFilter:{category:PART_CATEGORY,mask:BALL_CATEGORY,group:0}});
-        this._inletBodies.push(inlet);World.add(this.engine.world,inlet);
-      }
+    }
+    for(const inlet of inlets){
+      const points=inletCollider(inlet);
+      const body=Body.create({vertices:points,position:Vertices.centre(points),isStatic:true,
+        label:'Continuous lever inlet',friction:0.02,restitution:0.02,
+        collisionFilter:{category:PART_CATEGORY,mask:BALL_CATEGORY,group:0}});
+      this._inletBodies.push(body);World.add(this.engine.world,body);
     }
     return true;
   }
@@ -166,7 +168,7 @@ export class PhysicalBallRouter implements IBallRouter {
     const actuations:Map<Ball, Turnstile[]> = new Map();
     for (const [partBody, hits] of contacts.entries()) {
       const lever = partBody.part;
-      if (!(lever instanceof Turnstile) || lever.rotation < 0.55) continue;
+      if (!(lever instanceof Turnstile) || lever.rotation <= 0.0001) continue;
       for (const hit of hits) {
         const ball = hit.ballPartBody.part as Ball;
         if (!actuations.has(ball)) actuations.set(ball, []);
@@ -178,7 +180,8 @@ export class PhysicalBallRouter implements IBallRouter {
       // side to choose one lever; never release from both for the same marble.
       const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
       levers.sort((a, b) => Math.abs(from - a.column) - Math.abs(from - b.column));
-      levers[0].registerPass(ball);
+      // A brief strike starts one complete rigid stroke, not an early return.
+      if(levers[0].registerPass(ball))levers[0].pulse(this.board.speed,false);
     }
     // combine the velocities of connected gear trains
     this.connectGears(contacts);
@@ -370,7 +373,7 @@ export class PhysicalBallRouter implements IBallRouter {
       for (let c:number = -1; c <= 1; c++) {
         for (let r:number = -1; r <= 1; r++) {
           const part = this.board.getPart(column + c, row + r);
-          if (! part || this.board.outputRegister.replaces(part) || this.board.supplyGuide.replaces(part)) continue;
+          if (! part || this.board.outputRegister.replaces(part) || this.board.supplyGuide.replaces(part) || isLeverInletPart(this.board,part)) continue;
           addParts.add(part);
           removeParts.delete(part);
           neighbors.add(part);

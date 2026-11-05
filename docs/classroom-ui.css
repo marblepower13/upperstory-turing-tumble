@@ -1,7 +1,7 @@
-:root { --panel: 218px; --brand: 300px; --gutter: 16px; color-scheme: light; font-family: Arial, Helvetica, sans-serif; color: #202529; }
+:root { --panel: 218px; --brand: 201px; --gutter: 16px; color-scheme: light; font-family: Arial, Helvetica, sans-serif; color: #202529; }
 * { box-sizing: border-box; }
 html, body { height: 100%; width: 100%; overflow: hidden; background: white; }
-#container { position: absolute; top: 172px; bottom: 68px; left: max(calc(var(--panel) + 2 * var(--gutter)), calc(var(--brand) + 2 * var(--gutter))); right: calc(var(--panel) + 2 * var(--gutter)); width: auto; height: auto; touch-action: none; }
+#container { position: absolute; top: 248px; bottom: 68px; left: max(calc(var(--panel) + 2 * var(--gutter)), calc(var(--brand) + 2 * var(--gutter))); right: calc(var(--panel) + 2 * var(--gutter)); width: auto; height: auto; touch-action: none; }
 #classroom-ui { visibility: hidden; }
 #classroom-ui.ready { visibility: visible; }
 .sidebar { position: fixed; top: var(--gutter); bottom: var(--gutter); width: var(--panel); display: flex; flex-direction: column; gap: 12px; overflow: auto; scrollbar-width: thin; padding-bottom: 2px; }
@@ -21,7 +21,7 @@ html, body { height: 100%; width: 100%; overflow: hidden; background: white; }
 .hint { font-size: 12px; line-height: 1.5; color: #566168; padding: 8px 5px 1px; margin: 0; }
 .speed { font-size: 12px; color: #566168; margin: 8px 8px 2px; text-align: center; }
 .bottom { margin-top: auto; padding-top: 20px; }
-#simulator-title { position: fixed; top: 10px; left: max(calc(var(--panel) + 2 * var(--gutter)), calc(var(--brand) + 2 * var(--gutter))); right: calc(var(--panel) + 2 * var(--gutter)); margin: 0; text-align: center; height: 152px; line-height: 1; color: #202529; }
+#simulator-title { position: fixed; top: 10px; left: max(calc(var(--panel) + 2 * var(--gutter)), calc(var(--brand) + 2 * var(--gutter))); right: calc(var(--panel) + 2 * var(--gutter)); margin: 0; text-align: center; height: 228px; line-height: 1; color: #202529; }
 #tooltip { position: fixed; z-index: 20; pointer-events: none; max-width: 265px; background: #252c30; color: white; padding: 10px 13px; border-radius: 8px; font: 13px/1.45 Arial, sans-serif; box-shadow: 0 3px 12px #0002; }
 #tooltip[hidden] { display: none; }
 dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); overflow: auto; padding: 24px; border: 1px solid #cdd4d7; border-radius: 16px; box-shadow: 0 16px 70px #0003; font: 15px/1.5 Arial,sans-serif; color: #202529; }
@@ -42,14 +42,14 @@ dialog p { margin: 10px 0; } dialog ul { padding-left: 20px; }
 @media (prefers-reduced-motion: reduce) { #container, #loading { transition: none; } }
 
 #simulator-title img { height: 100%; width: auto; max-width: 100%; object-fit: contain; }
-.brand { position: fixed; left: var(--gutter); bottom: var(--gutter); width: 300px; display: flex; align-items: center; flex-direction: column; gap: 6px; }
-.brand img { width: 300px; height: 300px; object-fit: contain; }
+.brand { position: fixed; left: var(--gutter); bottom: var(--gutter); width: 201px; display: flex; align-items: center; flex-direction: column; gap: 6px; }
+.brand img { width: 201px; height: 201px; object-fit: contain; }
 .brand a { color: #146d7c; font-size: 12px; text-align: center; line-height: 1.4; width: 100%; }
-.sidebar.left { bottom: 344px; }
+.sidebar.left { bottom: 245px; }
 #transport { position: fixed; bottom: 10px; left: max(calc(var(--panel) + 2 * var(--gutter)), calc(var(--brand) + 2 * var(--gutter))); right: calc(var(--panel) + 2 * var(--gutter)); display: flex; justify-content: center; gap: 10px; }
 #transport .control { width: auto; min-width: 105px; justify-content: center; border-color: #bec9cc; margin: 0; background: #f4f7f7; }
 #transport .control span { display: inline; }
 #transport .control svg { width: 24px; height: 24px; }
 #status { bottom: 70px; }
-@media (max-height: 760px) { :root { --brand: 195px; } .brand { width: 195px; } .brand img { width: 195px; height: 195px; } .sidebar.left { bottom: 235px; } }
-@media (max-width: 670px) { :root { --brand: 62px; } #container { bottom: 195px; } #transport { left: 154px; right: 5px; gap: 6px; } .brand { width: 144px; } .brand img { width: 144px; height: 144px; } .sidebar.left { bottom: 195px; } .brand a { font-size: 10px; } #transport .control { min-width: 74px; font-size: 12px; gap: 5px; } }
+@media (max-height: 760px) { :root { --brand: 131px; } .brand { width: 131px; } .brand img { width: 131px; height: 131px; } .sidebar.left { bottom: 171px; } }
+@media (max-width: 670px) { :root { --brand: 62px; } #container { bottom: 147px; } #transport { left: 106px; right: 5px; gap: 6px; } .brand { width: 96px; } .brand img { width: 96px; height: 96px; } .sidebar.left { bottom: 147px; } .brand a { font-size: 10px; } #transport .control { min-width: 74px; font-size: 12px; gap: 5px; } }

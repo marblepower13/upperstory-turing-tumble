@@ -117,7 +117,7 @@ export class SchematicBallRouter implements IBallRouter {
       const dc = (ball.column - lever.column) * (lever.isFlipped ? -1 : 1);
       const along = dc + (LEVER_PIVOT_OFFSET / SPACING);
       const surface = lever.row + (Math.sin(LEVER_REST_ANGLE) * along);
-      if (along >= -24 / SPACING && along <= (LEVER_TIP + 2) / SPACING &&
+      if (along >= -24 / SPACING && along <= (LEVER_TIP + 2) / SPACING + RAD &&
           ball.row + RAD >= surface && ball.row <= lever.row + 0.5) {
         candidates.push(lever);
       }

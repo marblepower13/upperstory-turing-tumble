@@ -3,6 +3,47 @@
 This package updates the existing marblepower13/upperstory-turing-tumble repository.
 It is an update package, not a complete standalone checkout.
 
+## Rigid lever, continuous slope and reset corrections - November 5, 2026
+
+- Reset all reconnects the NEW supply objects even when board coordinates and
+  dimensions are unchanged. Repeated resets retain the long rails, seated
+  marbles and circular releasers; the original holding cups remain hidden.
+- A lower lever stays one rigid object. Its inner receiving end rotates downward
+  about the white hinge; the counterweight rises slightly but remains below the
+  white board slope throughout the full stroke. A detected marble impact starts
+  one complete stroke/return. Pausing freezes the mechanism mid-stroke.
+- The final runs of lower white slopes are drawn as uninterrupted slender rails
+  ending at the widened black receiving heels. There are no overlay boxes or
+  added visible wedges. The short black nose covers the remaining receiving
+  area beside a tapered fixed center block; the opening admits a marble when
+  the lever depresses. The fixed rail geometry does not move with the lever.
+- Invisible outer guards remain in the collision model to retain stray marbles.
+  The receiving end travels downward by more than one marble diameter. Sampled
+  counterweight-to-visible-slope clearance stays at least 6.06 model units.
+- Hovering over either circular upper releaser or anywhere on a visible lower
+  lever displays 'Press to Start'. Clicking the visible lower lever, including
+  its counterweight end, starts its actual rigid stroke. The popup disappears
+  when leaving the control or pressing it. Add marbles retains priority when
+  adding a marble to a supply cup.
+- Upper Story remains at lower left with its product link centered below it;
+  it is 33% smaller than the preceding release (201 px desktop instead of 300).
+  The Turing Tumble logo is another 1.5x larger (228 px maximum height instead
+  of 152). Responsive variants are included.
+- Ramp traversal/counterweight rules are unchanged. Source and compiled hosting
+  files are included. The update does not overwrite README.md or LICENSE.
+
+### Uploading
+
+Extract the ZIP and upload the CONTENTS of upperstory-turing-tumble-update into
+matching folders in the existing repository. Do not add that enclosing folder as
+another nested directory. Continue publishing master's /docs folder. The package
+is an update, not a complete standalone repository. Nothing was pushed or
+published on your behalf.
+
+See PHYSICS_TEST_RESULTS.md for the current verification and live-review steps.
+
+## Previous release history
+
 ## Linked cupped releasers and revised levers - November 5, 2026
 
 - The blue and red circular releasers now have visible cupped cutouts, each

@@ -83,7 +83,8 @@ export class SupplyGuide {
       for(const drop of this.board.drops)if(drop.isLocked&&this.board.getPart(drop.column,drop.row)===drop)eligible.push(drop);
     if(eligible.length!==2 || eligible[0].isFlipped===eligible[1].isFlipped || eligible[0].row!==eligible[1].row)eligible.length=0;
     const signature=eligible.map(d=>d.column+','+d.row+','+d.isFlipped).join(';')+':'+this.board.columnCount;
-    if(signature!==this.signature){
+    if(signature!==this.signature || eligible.length!==this.supplies.length ||
+       eligible.some((drop,i)=>drop!==this.supplies[i])){
       for(const [drop,override] of this.overrides)if(drop.releaseOverride===override)drop.releaseOverride=null;
       this.overrides.clear();this.clear();this.supplies=eligible;this.signature=signature;
       for(const drop of eligible){const override=(lever?:Turnstile)=>this.release(drop,lever);drop.releaseOverride=override;this.overrides.set(drop,override);}

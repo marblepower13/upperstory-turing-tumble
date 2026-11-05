@@ -16,7 +16,7 @@ import { Drop } from 'parts/drop';
 import { ColorWheel, DropButton, TurnButton, BallCounter } from './controls';
 import { Animator } from 'ui/animator';
 import { Turnstile } from 'parts/turnstile';
-import { centerBlocks, CENTER_BLOCK_VERTICES, leverInletVertices } from './centerblock';
+import { centerBlocks, CENTER_BLOCK_VERTICES, leverInlets, isLeverInletPart } from './centerblock';
 import { SupplyGuide } from './supplyguide';
 import { OutputRegister } from './outputregister';
 import { makeKeyHandler } from 'ui/keyboard';
@@ -167,7 +167,7 @@ export class Board {
       row = this._grid[r];
       for (c = cMinGrid; c < cMaxGrid; c++) {
         part = row[c];
-        if (part && !this.outputRegister.replaces(part) && !this.supplyGuide.replaces(part)) visible.add(part);
+        if (part && !this.outputRegister.replaces(part) && !this.supplyGuide.replaces(part) && !isLeverInletPart(this,part)) visible.add(part);
       }
     }
     // add balls
@@ -201,18 +201,21 @@ export class Board {
   private _centerBlockDrawingSignature:string = '';
   private _drawCenterBlocks():void {
     const blocks = centerBlocks(this);
-    const signature = this.spacing + ':' + blocks.map(b => b.column + ',' + b.row).join(';');
+    const inlets=leverInlets(this);
+    const signature = this.spacing + ':' + blocks.map(b => b.column + ',' + b.row).join(';')+':'+inlets.map(i=>[i.start.x,i.start.y,i.end.x,i.end.y].join(',')).join(';');
     if (signature === this._centerBlockDrawingSignature) return;
     this._centerBlockDrawingSignature = signature;
     const g = this._centerBlockView;
     g.clear();
     const scale = this.spacing / SPACING;
-    for (const block of blocks) {
-      for (const vertices of leverInletVertices(block)) {
-        g.lineStyle(Math.max(0.5, scale), 0xb7bec1, 1);g.beginFill(0xfafaf8);
-        g.drawPolygon(vertices.map(v => [this.xForColumn(v.x/SPACING),this.yForRow(v.y/SPACING)])
-          .reduce((a,p) => a.concat(p),[]));g.endFill();
+    for(const inlet of inlets){
+      for(const style of [[0.075,0xb7bec1],[0.038,0xfafaf8]]){
+        g.lineStyle(style[0]*this.spacing,style[1],1);
+        g.moveTo(inlet.start.x*scale,inlet.start.y*scale);
+        g.lineTo(inlet.end.x*scale,inlet.end.y*scale);
       }
+    }
+    for (const block of blocks) {
       const x = this.xForColumn(block.column), y = this.yForRow(block.row);
       g.lineStyle(Math.max(0.5, scale), 0xc7cccf, 1);
       g.beginFill(0xf9f9f7);
@@ -222,7 +225,7 @@ export class Board {
       g.lineStyle(Math.max(0.5, scale), 0xffffff, 1);
       g.moveTo(x, y - 0.66 * this.spacing);
       g.lineTo(x - 0.18 * this.spacing, y - 0.49 * this.spacing);
-      g.lineTo(x - 0.18 * this.spacing, y + 0.34 * this.spacing);
+      g.lineTo(x - 0.09 * this.spacing, y + 0.34 * this.spacing);
     }
     Renderer.needsUpdate();
   }
@@ -1342,6 +1345,7 @@ export class Board {
     this.view.addListener('mousemove', this._onMouseMove.bind(this));
     this.view.addListener('mouseup', this._onMouseUp.bind(this));
     this.view.addListener('click', this._onClick.bind(this));
+    this.view.addListener('mouseout',()=>{if(this.onStartControlHover)this.onStartControlHover(false,0,0);});
 
     this.view.addListener('touchstart', this._onMouseDown.bind(this));
     this.view.addListener('touchmove', this._onMouseMove.bind(this));
@@ -1560,6 +1564,15 @@ export class Board {
     }
   }
 
+  public onStartControlHover:(active:boolean,clientX:number,clientY:number)=>void;
+  public startControlAt(column:number,row:number):Part {
+    const drop=this.supplyGuide.buttonAt(column,row);
+    if(drop)return drop;
+    for(const supply of this.drops)for(const lever of supply.turnstiles)
+      if(this.getPart(lever.column,lever.row)===lever&&lever.hitTest(column,row))return lever;
+    return null;
+  }
+
   private _updateAction(e?:PIXI.interaction.InteractionEvent):void {
     let cursor = 'auto';
     let c:number, r:number, column:number, row:number;
@@ -1581,11 +1594,11 @@ export class Board {
     const oldActionPart = this._actionPart;
     this._actionPart = this.getPart(column, row);
     let ball:Ball;
-    const releaser=this.supplyGuide.buttonAt(c,r);
+    const startControl=this.startControlAt(c,r);
     if(this.tool===ToolType.PART&&this.partPrototype&&this.partPrototype.type===PartType.BALL&&this.marbleSupplyAt(c,r)){
       this._action=ActionType.PLACE_BALL;cursor='pointer';
     }
-    else if(releaser){this._action=ActionType.DROP_BALL;this._actionPart=releaser;cursor='pointer';}
+    else if(startControl){this._action=startControl instanceof Turnstile?ActionType.TURN_TURNSTILE:ActionType.DROP_BALL;this._actionPart=startControl;cursor='pointer';}
     else if (this._controlKeyDown) {
       this._action = ActionType.PAN;
       cursor = 'all-scroll';
@@ -1676,18 +1689,9 @@ export class Board {
         this._hideControl(this._dropButton);
         this._hideControl(this._colorWheel);
       }
-      // show/hide turnstile controls
-      if ((this._actionPart instanceof Turnstile) && 
-          (this.tool == ToolType.HAND)) {
-        this._turnButton.x = this.xForColumn(this._actionPart.column);
-        this._turnButton.y = this.yForRow(this._actionPart.row);
-        this._turnButton.isFlipped = this._actionPart.isFlipped;
-        this._turnButton.size = this.controlSize;
-        this._showControl(this._turnButton);
-      }
-      else if (oldActionPart instanceof Turnstile) {
-        this._hideControl(this._turnButton);
-      }
+      // The rigid lever itself is clickable; use the text popup rather than
+      // overlaying a legacy floating rotor button on its receiving area.
+      if(this._turnButton.visible)this._hideControl(this._turnButton);
       // show hide the ball counter
       if ((this._action === ActionType.PLACE_BALL) &&
           (this._ballCounter.drop = // intentional assignment
@@ -1700,6 +1704,11 @@ export class Board {
       else if (this._ballCounter.visible) {
         this._hideControl(this._ballCounter);
       }
+    }
+    if(this.onStartControlHover&&e){
+      const mouse=e.data.originalEvent as MouseEvent;
+      const active=this._action===ActionType.DROP_BALL||this._action===ActionType.TURN_TURNSTILE;
+      this.onStartControlHover(active&&mouse&&typeof mouse.clientX==='number',mouse?mouse.clientX:0,mouse?mouse.clientY:0);
     }
     this._updatePreview();
   }

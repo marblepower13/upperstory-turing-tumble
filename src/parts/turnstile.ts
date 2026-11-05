@@ -10,9 +10,9 @@ import { Animator } from 'ui/animator';
 // Retain the serialized Turnstile type so existing board links still load.
 // Geometry and motion now represent one pivoting release lever, not a rotor.
 export const LEVER_PIVOT_OFFSET:number = 1.0 * SPACING;
-export const LEVER_TIP:number = LEVER_PIVOT_OFFSET + (0.71 * SPACING);
+export const LEVER_TIP:number = LEVER_PIVOT_OFFSET + (0.54 * SPACING);
 export const LEVER_REST_ANGLE:number = -0.09;
-export const LEVER_TRAVEL:number = 0.65;
+export const LEVER_TRAVEL:number = 0.33;
 
 // Raised outer rim catches outward-rolling marbles. Shared with the collider.
 export const LEVER_OUTER_END:number = -40 - 1.6 * SPACING;
@@ -55,14 +55,15 @@ export class Turnstile extends Part {
       g.beginFill(0x282c2e);
       g.moveTo(LEVER_COUNTERWEIGHT+15, -6);
       g.lineTo(LEVER_TIP-38, -6);
-      g.quadraticCurveTo(LEVER_TIP-29, -7, LEVER_TIP-22, -11);
-      g.lineTo(LEVER_TIP-9, -10);
-      // Shallow receiving cup with a raised nose and widened heel.
-      g.quadraticCurveTo(LEVER_TIP-9, -3, LEVER_TIP+2, -5);
-      g.lineTo(LEVER_TIP+2, 5);
-      g.quadraticCurveTo(LEVER_TIP-9, 3, LEVER_TIP-9, 10);
-      g.lineTo(LEVER_TIP-22, 11);
-      g.quadraticCurveTo(LEVER_TIP-29, 7, LEVER_TIP-38, 6);
+      g.quadraticCurveTo(LEVER_TIP-30, -6, LEVER_TIP-25, -10);
+      g.lineTo(LEVER_TIP-14, -10);
+      // The widened receiving heel tapers into one short, straight nose.
+      g.quadraticCurveTo(LEVER_TIP-12, -4, LEVER_TIP-7, -4);
+      g.lineTo(LEVER_TIP+2, -4);g.lineTo(LEVER_TIP+2, 4);
+      g.lineTo(LEVER_TIP-7, 4);
+      g.quadraticCurveTo(LEVER_TIP-12, 4, LEVER_TIP-14, 10);
+      g.lineTo(LEVER_TIP-25, 10);
+      g.quadraticCurveTo(LEVER_TIP-30, 6, LEVER_TIP-38, 6);
       g.lineTo(LEVER_COUNTERWEIGHT+15, 6);g.closePath();g.endFill();
       // The outer collision guard remains in PartBody but has no artwork.
       g.lineStyle(1.5,0x111619,1);g.beginFill(0x222628);
@@ -107,17 +108,29 @@ export class Turnstile extends Part {
     Renderer.needsUpdate();
   }
 
+  // Hit the visible rigid lever, including its distant counterweight end.
+  public hitTest(column:number,row:number):boolean {
+    const sign=this.isFlipped?-1:1,a=this.angleForRotation(this.rotation);
+    const dx=(column-this.column)*SPACING+sign*LEVER_PIVOT_OFFSET;
+    const dy=(row-this.row)*SPACING;
+    const x=sign*(dx*Math.cos(a)+dy*Math.sin(a));
+    const y=-dx*Math.sin(a)+dy*Math.cos(a),margin=5;
+    if(Math.pow(x-LEVER_COUNTERWEIGHT,2)+y*y<=Math.pow(24+margin,2))return true;
+    return x>=LEVER_COUNTERWEIGHT+15-margin&&x<=LEVER_TIP+2+margin&&Math.abs(y)<=11+margin;
+  }
+
   public get hue():number { return(this._centerBall.hue); }
   public set hue(v:number) { this._centerBall.hue = v; this._updateSprites(); }
 
   // Advance once per marble after a verified lever actuation. Sharing the
   // marker across both arms prevents a central contact releasing two marbles.
   private _passed:WeakSet<Ball> = new WeakSet();
-  public registerPass(ball:Ball):void {
-    if (ball.hasActuatedLever || this._passed.has(ball)) return;
+  public registerPass(ball:Ball):boolean {
+    if (ball.hasActuatedLever || this._passed.has(ball)) return false;
     ball.hasActuatedLever = true;
     this._passed.add(ball);
     if (this.drop) this.drop.releaseBall(this);
+    return true;
   }
 
   public resetWithoutRelease():void {

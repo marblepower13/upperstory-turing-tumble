@@ -1,5 +1,7 @@
 import { Board } from './board';
-import { Turnstile } from 'parts/turnstile';
+import { Slope } from 'parts/fence';
+import { Part } from 'parts/part';
+import { Turnstile, LEVER_TIP, LEVER_PIVOT_OFFSET, LEVER_REST_ANGLE } from 'parts/turnstile';
 import { SPACING } from './constants';
 
 export type CenterBlock = { column:number, row:number };
@@ -8,10 +10,10 @@ export type CenterBlock = { column:number, row:number };
 export const CENTER_BLOCK_VERTICES = [
   {x: 0, y: -0.70 * SPACING},
   {x: 0.23 * SPACING, y: -0.50 * SPACING},
-  {x: 0.23 * SPACING, y: 0.38 * SPACING},
-  {x: 0.18 * SPACING, y: 0.45 * SPACING},
-  {x: -0.18 * SPACING, y: 0.45 * SPACING},
-  {x: -0.23 * SPACING, y: 0.38 * SPACING},
+  {x: 0.12 * SPACING, y: 0.38 * SPACING},
+  {x: 0.08 * SPACING, y: 0.45 * SPACING},
+  {x: -0.08 * SPACING, y: 0.45 * SPACING},
+  {x: -0.12 * SPACING, y: 0.38 * SPACING},
   {x: -0.23 * SPACING, y: -0.50 * SPACING}
 ];
 
@@ -31,11 +33,40 @@ export function centerBlocks(board:Board):CenterBlock[] {
   return blocks;
 }
 
-// Short, flush continuations of the lower board ramps meet the widened lever
-// heels at rest; they leave the receiving cups and downward sweep clear.
-export function leverInletVertices(block:CenterBlock):{x:number,y:number}[][] {
-  return [-1,1].map(sign => [
-    {x:1.54,y:-0.565},{x:0.84,y:-0.215},
-    {x:0.86,y:0.02},{x:1.54,y:-0.25}
-  ].map(p => ({x:(block.column+sign*p.x)*SPACING,y:(block.row+p.y)*SPACING})));
+export type LeverInlet = {lever:Turnstile,parts:Part[],start:{x:number,y:number},end:{x:number,y:number}};
+
+// Replace the last continuous slope run with one uninterrupted rail ending at
+// the wide lever heel. Endpoints are derived from the rigid lever at rest.
+export function leverInlets(board:Board):LeverInlet[] {
+  const result:LeverInlet[]=[];
+  for(const block of centerBlocks(board))for(const sign of [1,-1]){
+    const lever=board.getPart(block.column-sign,block.row) as Turnstile;
+    const parts:Part[]=[];let c=lever.column-sign;
+    while(true){
+      const p=board.getPart(c,lever.row-1);
+      if(!(p instanceof Slope)||!p.isLocked||p.isFlipped!==lever.isFlipped)break;
+      parts.push(p);c-=sign;
+    }
+    if(!parts.length)continue;
+    const first=parts[parts.length-1];
+    const u=LEVER_TIP-22,v=-11,a=LEVER_REST_ANGLE;
+    const start={x:(first.column-sign*0.5)*SPACING,y:(first.row-0.5)*SPACING};
+    const end={x:lever.column*SPACING-sign*LEVER_PIVOT_OFFSET+sign*(u*Math.cos(a)-v*Math.sin(a)),
+      y:lever.row*SPACING+u*Math.sin(a)+v*Math.cos(a)-0.035*SPACING};
+    result.push({lever:lever,parts:parts,start:start,end:end});
+  }
+  return result;
+}
+
+export function isLeverInletPart(board:Board,part:Part):boolean {
+  return !!part&&part instanceof Slope&&part.isLocked&&
+    leverInlets(board).some(inlet=>inlet.parts.indexOf(part)>=0);
+}
+
+export function inletCollider(inlet:LeverInlet):{x:number,y:number}[] {
+  // Solid backing below the thin visible edge catches fast incoming marbles.
+  // It shares the same upper face and never forms an extra visible box.
+  const a=inlet.start,b=inlet.end,t=0.22*SPACING;
+  return [{x:a.x,y:a.y-0.035*SPACING},{x:b.x,y:b.y-0.035*SPACING},
+    {x:b.x,y:b.y+t},{x:a.x,y:a.y+t}];
 }
