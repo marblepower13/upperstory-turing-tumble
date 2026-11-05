@@ -3,36 +3,54 @@
 This package updates the existing marblepower13/upperstory-turing-tumble repository.
 It is an update package, not a complete standalone checkout.
 
-## Physical board appearance, branding and controls - November 5, 2026
+## Linked cupped releasers and revised levers - November 5, 2026
 
-- Replaced the compact standard supply cups with long sloped rails, circular
-  black releasers at the outer ends, and inward feed channels to the original
-  first mounting positions. One click on either black releaser releases one
-  marble, independently of the selected tool. Repeated clicks reserve separate
-  marbles; the feeder retains their order. Pause freezes guided travel as well
-  as board marble movement. Standard supplies start with eight per color and
-  were tested with twenty per color.
-- Revised the bottom lever appearance using the supplied reference: circular
-  end caps, slender moulded arms, recesses and shaped inner tips. Retained the
-  tested collision geometry, depression limits and outer-end catch protection.
-- Made the output-channel mouth flush with its angled inlet rails. The change
-  removes the two protruding visual joins without changing register routing.
-- Replaced the text heading with the supplied Turing Tumble logo. Added the
-  supplied Upper Story logo at lower left and the requested product-page link.
-- Added Instructions above Tools. The full usage text now lives there, with
-  F shortcut and Play/Pause instructions. Help contains only the support
-  contact at hello@upperstory.com. Attribution remains within Instructions.
-- Added F to flip the selected placement preview. Input fields, open dialogs,
-  modified/repeated keypresses, and Interceptor/Gear/Add marbles are excluded.
-  The symmetric Crossover has no different left/right appearance; its tooltip
-  explains that. Extra part tooltips also describe F.
-- Added Play and Pause below the board. Pause keeps the selected speed for
-  resume; Reset all restores normal speed. Fit includes the wider upper rails.
-- Ramp/counterweight implementation, ramp collision vertices, friction/density
-  constants and ramp traversal helpers are unchanged. No frame-rate or ramp
-  timing calibration is included in this update.
-- Both logos are included in src/images and docs/images; make app copies them.
-  Source, compiled hosting code and current verification results are included.
+- The blue and red circular releasers now have visible cupped cutouts, each
+  initially holding one marble. The blue disk turns clockwise and the red disk
+  counterclockwise as the corresponding lower lever tips, then returns with it.
+  The next supply marble enters the cup only after the mechanism returns.
+- A real lower lever contact and depression starts one release. Holding a lever
+  down cannot repeatedly release marbles. A busy top releaser ignores additional
+  clicks until its stroke and reload finish. Manual top clicks remain available
+  for starting the machine and work without any lower levers.
+- The linkage is virtual; no connecting rods are drawn. Its two ends update in
+  the same simulation step. Manual cycles, schematic lever pulses and stock/feed
+  travel use simulation steps, so Pause freezes the complete mechanism.
+- Lower levers now hinge at the white peg in the central mounting hole, rather
+  than near the counterweight cap. The blue/red counterweight ends move with the
+  lever. Shaped receiving cups and wider heels meet short flush continuations of
+  the white lower board ramps. The center divider stays fixed, with no feet
+  extending into the exits. Full depression leaves about 32.83 units to the
+  divider and 31.98 to the lower funnel for a 20-unit marble.
+- White outer catch tabs are invisible; their collision guards remain active to
+  retain stray marbles. The advanced release-lever tool icon matches the new
+  hinge/profile. The guided forty-marble output register retains its entry order.
+- The Turing Tumble logo is twice its previous size. Upper Story remains at the
+  lower left, three times its previous size, with the product link centered below.
+  Header, board, tools and branding have separate layout space. Responsive
+  breakpoints retain the enlarged proportions where space permits.
+- Crossover hover text no longer mentions F. Other previously approved tooltip
+  exclusions remain. Instructions, support email and Play/Pause remain available.
+- Add marbles still adds to either supply, including when clicking an existing
+  marble in its cup; select another tool to operate that black releaser manually.
+- Playable ramp traversal/counterweight behavior has not been tuned. Ramp source,
+  shared component vertices and physics constants are unchanged. PartBody edits
+  are confined to the lower release levers. The new top mechanism changes supply
+  delivery timing, not the speed through a playable ramp.
+
+### Uploading this update
+
+Extract the ZIP and upload the CONTENTS of upperstory-turing-tumble-update into
+existing repository folders, replacing files at matching paths. Do not upload
+that enclosing folder as an additional nested directory. Publish from master's
+/docs folder as before. This ZIP is an update, not a complete new repository.
+README.md, LICENSE and existing dependency notices are not overwritten.
+
+The included PHYSICS_TEST_RESULTS.md describes automated checks and the remaining
+live-browser review. Source and compiled hosting files match; no publishing was
+performed on your behalf.
+
+## Earlier changes (historical)
 
 ## Single-file output register and page title
 

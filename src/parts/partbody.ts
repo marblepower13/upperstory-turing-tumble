@@ -58,13 +58,18 @@ export class PartBody {
       this._body = this._bodyForSlope(this._part);
       this._slopeSignature = this._part.signature;
     }
-    // Single lever blade about an outer pivot; no hidden rotor remains.
+    // Lever hinges at the white peg in its marked central hole.
     else if (this._part instanceof Turnstile) {
       const sign = this._part.isFlipped ? -1 : 1;
       this._bodyOffset.x = -sign * LEVER_PIVOT_OFFSET;
       this._body = this._bodyFromVertexSets([[
-        { x: LEVER_OUTER_END, y: -6 }, { x: LEVER_TIP + 2, y: -5 },
-        { x: LEVER_TIP + 2, y: 5 }, { x: LEVER_OUTER_END, y: 6 }
+        { x: LEVER_OUTER_END, y: -6 }, { x: LEVER_TIP - 35, y: -6 },
+        { x: LEVER_TIP - 35, y: 6 }, { x: LEVER_OUTER_END, y: 6 }
+      ], [
+        { x: LEVER_TIP - 35, y: -6 }, { x: LEVER_TIP - 22, y: -11 },
+        { x: LEVER_TIP - 9, y: -10 }, { x: LEVER_TIP + 2, y: -5 },
+        { x: LEVER_TIP + 2, y: 5 }, { x: LEVER_TIP - 9, y: 10 },
+        { x: LEVER_TIP - 22, y: 11 }, { x: LEVER_TIP - 35, y: 6 }
       ], [
         { x: LEVER_OUTER_END, y: LEVER_RIM_TOP },
         { x: LEVER_RIM_INNER, y: LEVER_RIM_TOP },
@@ -354,10 +359,11 @@ export class PartBody {
         const engaged = ((nearby instanceof Set) && (nearby.size > 0)) ||
           ((contacts instanceof Set) && (contacts.size > 0));
         if (! engaged) {
-          target = this._part.angleForRotation(0);
+          target = this._part.angleForRotation(Math.max(0, r - 0.08));
           lock = true;
         }
         else if (r >= 1.0) lock = true;
+        if(this._part.isPulsing){target=this._part.angleForRotation(this._part.rotation);lock=true;}
       }
       else if ((r < 0) || (r > 1)) lock = true;
       if (lock) {

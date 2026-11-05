@@ -1,67 +1,77 @@
-# Upper Story simulator: physical board and controls verification
+# Upper Story simulator: linked releasers verification
 
 Tested November 5, 2026.
 
-## Current implementation
+## Current mechanism
 
-The standard supplies use long sloped rows, outer circular black releasers and
-inward feed channels to the original first pegs. Supply and feed travel is guided;
-marbles are handed to the existing physics on the board. Bottom lever artwork
-was restyled while retaining the previously tested collision bodies, travel and
-outer-end protection. The two output inlet joins are now flush. The guided
-40-marble register retains entry order and spacing.
+Each standard supply has a long sloped rail and a circular black releaser with
+one marble seated in its cup. The two mirrored releasers rotate downward with
+their corresponding lower levers (clockwise blue, counterclockwise red). The
+marble follows the cup before passing into the guided upper feed. The next stock
+marble seats only after the releaser returns. Repeated clicks during a busy
+stroke/reload are ignored; a held bottom lever cannot release extra marbles.
+Manual top clicks initiate a complete single-marble cycle.
 
-The Turing Tumble logo replaces the text heading. Upper Story branding and the
-product link are at lower left. Instructions is above Tools and contains the
-usage text. Help contains only the support email. F changes the selected placement
-preview where orientation applies; the Crossover's symmetry is explained in its
-tooltip. Play/Pause sits below the board and resumes at the previous speed.
+The lower hinges are at the central mounting holes shown in the supplied lever
+reference. Outer colored counterweights move with the lever. Receiving heels
+are wider, tips are cupped, and short fixed white inlet ramps meet the heels at
+rest. Invisible outer guards retain stray marbles. The center divider is fixed,
+and the guided forty-marble output retains exact arrival order.
 
-## Ramp behavior preserved
+## Method and limits
 
-The full src/parts/ramp.ts, src/parts/partbody.ts, src/parts/partvertices.ts and
-src/board/constants.ts files were compared byte-for-byte with the prior review
-snapshot and are unchanged. Counterweight parameters, ramp contacts, incline
-assistance, collision geometry and traversal helpers have not been tuned. The
-frame-based playback scheduling remains unchanged. The redesigned feeder can
-change the timing of arrival at the first ramp; this is not a change to the ramp
-model itself.
+Engine checks load the compiled application and its actual hosted Matter.js
+0.14.2 bundle; PIXI rendering is stubbed. DOM checks exercise the hosted classroom
+interface through DOM emulation. New geometry was also inspected through raster
+renders of the actual vector drawing commands at rest and with a lever pressed.
+This is not a successful live WebGL/browser layout test: the available headless
+browser could not launch in this environment. Browser appearance, pointer use,
+responsive layout and intended touch devices still require live review.
 
-## Verification
-
-Tests load the compiled app and its actual hosted Matter.js 0.14.2 bundle with
-rendering stubbed. Interface tests use DOM emulation. Source compiles with
-TypeScript 2.7.2 and the hosted JavaScript passes syntax checks.
+## Results
 
 | Check | Coverage | Result |
 | --- | --- | --- |
-| New supply behavior | Both colors, 8/20 capacities, physical/schematic modes (8 cases) | Correct parking and colors; three rapid manual releases; pause freezes rail/feed coordinates; all released marbles collect; silent return |
-| Releaser hit testing | Hand, placement and erase modes | Exactly one marble per black-disk click |
-| Full machine runs | 18 combinations: 8/20 per color, blue/red/both starts, speeds 0.25/1/8 | Supply totals conserved; released marbles actuate and collect in entry order |
-| Empty-board runs | Both starts at all 11 nonzero speeds (22 cases) | All released marbles retained, actuated and settled |
-| Output patterns | Four 40-marble patterns at 11 speeds in both modes (88 cases) | Exact identities/colors preserved; full-diameter clearance through turn; stable finished row |
-| Center approaches | 306 physical and 68 schematic cases | Divider passage, one actuation and collection |
-| Outer-end and blade impacts | 60 outer-end and 102 blade-width cases | No escape or missed actuation |
-| Release isolation | Interceptor, in flight, below levers, missing levers, return | No collection/proximity-triggered continuation; top supplies remain functional even without bottom levers |
-| Other components | Ramp directions, crossover paths, bits, linked gear bits, interceptor | Passed |
-| Reset, size and register controls | Three standard sizes, 40 marbles, pause/resume, zoom, return/reset | Queue and component-state behavior preserved |
-| UI and shortcut | Logos/link, Instructions/Help content, tooltip exclusions, F dispatch, speed preservation, Play/Pause enabled states | Passed |
-| Assets and build | Original logos compared with source and hosted copies | Matching bytes; no logo alterations |
+| Cupped supplies | 8 cases: both colors, 8/20 capacities, both routing modes | Initial seating, spacing, rotation direction, one accepted press, reload and return passed |
+| Linked release | Both sides, real contact in physical/schematic modes | Top angle matches lower lever stroke in the same simulation step; no drawn linkage |
+| Held-lever protection | Both sides, 100 attempted repeats during each held stroke | One release until return; next press works after reload |
+| Pause | Manual supply and linked strokes in both modes | Cup, stock, feed and lower lever remain fixed; resume continues |
+| Manual controls | Black-disk hit testing across hand/part/erase; no bottom levers | One cycle per accepted click; busy clicks ignored |
+| Full machine | 18 combinations of 8/20 per color, blue/red/both starts, speeds 0.25/1/8 | Totals conserved, lever actuation, collection and order passed; final compiled bundle also reran the 40-marble simultaneous case |
+| Empty board | Both starts at eleven speeds (22 cases) | No lost or unactuated output marbles; all collected and settled |
+| Center approaches | 306 physical and 68 schematic cases | One actuation, passage and collection passed |
+| Fast blade impacts | 102 position/velocity cases | No misses after strengthening the flush inlet joins |
+| Outer ends | 60 position/outward-velocity cases | Invisible guards retain all marbles and route them to collection |
+| Pressed clearance | Both sides | Divider: 32.83 units; actual lower funnel: 31.98 units; marble diameter: 20 units |
+| Output patterns | 88 forty-marble cases across both modes and eleven speeds | Exact identities/order, clearance, idle stability and silent return passed |
+| Release isolation | Interceptor, free flight, below levers, removed levers, return | No automatic continuation without lower-lever actuation |
+| Other components | Both ramp directions, crossover routes, bits, gear-bit trains, interceptor | Passed |
+| Reset and register controls | Three standard sizes, forty marbles, zoom, pause, return/reset | Passed |
+| Interface | Logos/link, Instructions/Support, crossover F exclusion, other F tooltips, Play/Pause speed restore | Passed DOM checks |
+| Build and assets | TypeScript 2.7.2; hosted JS syntax; matching src/docs assets | Passed; uploaded logos unaltered |
+
+## Ramp behavior
+
+src/parts/ramp.ts, src/parts/partvertices.ts and src/board/constants.ts match the
+previous physical-board release byte-for-byte. The PartBody diff is confined to
+Turnstile collision geometry, return motion and manual pulse handling. No ramp
+counterweight constants, contact assistance, density, friction, vertices or
+traversal rules were changed. Existing physical playback scheduling is unchanged.
+New supply loading and release timing can alter arrival time at the first part.
 
 Compiled docs/app.js SHA-256:
-294d352f35ce882da669ecc9a9921abfac1b91b377c8d74890eb2b6a39f92f30
+09fb9b71e1f2da83f7835ae4073f88fe7596e60b29b4b49fa0fd56fe75a6020a
 
-## Live verification still needed
+## Live review after upload
 
-A live WebGL/browser layout session could not be completed reliably in the
-available preview environment. The tests above are engine and DOM checks, not
-an assertion that every device or browser has been visually verified. After
-uploading, check the physical rail and lever appearance, black-disk clicks,
-adding marbles to either rail, F preview behavior, Instructions/Help, logo sizing,
-Play/Pause placement and full-board fitting. Test any intended touch devices.
+Check both enlarged logos and the centered lower-left product link; tool access
+on your classroom screen; the absence of the crossover F description; cupped
+marble seating; click/release/return/reload on each side; synchronized lower lever
+and top disk movement; the new hinge positions and inlet joins; pause mid-stroke;
+return/reset; and a forty-marble sequence. Guards at the outer lever ends should
+be invisible while still retaining a stray marble.
 
-Normal standard boards and forty total marbles are the supported output capacity
-verified here. Advanced custom layouts, live resizing during feed travel and
-larger supplies are outside this layout guarantee. The original configuration
-file format remains in use. README.md, LICENSE and existing third-party notices
-are preserved by the update package. No code has been pushed or published.
+The output guarantee covers forty total marbles and standard board layouts.
+Advanced custom mechanisms, live resizing mid-stroke and greater capacities
+remain outside that guarantee. The update preserves the existing serializer
+format, README, license and dependency notices. No code was pushed or published.

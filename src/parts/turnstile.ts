@@ -9,15 +9,17 @@ import { Animator } from 'ui/animator';
 
 // Retain the serialized Turnstile type so existing board links still load.
 // Geometry and motion now represent one pivoting release lever, not a rotor.
-export const LEVER_PIVOT_OFFSET:number = 2.6 * SPACING;
+export const LEVER_PIVOT_OFFSET:number = 1.0 * SPACING;
 export const LEVER_TIP:number = LEVER_PIVOT_OFFSET + (0.71 * SPACING);
-export const LEVER_REST_ANGLE:number = -0.035;
-export const LEVER_TRAVEL:number = 0.28;
+export const LEVER_REST_ANGLE:number = -0.09;
+export const LEVER_TRAVEL:number = 0.65;
 
 // Raised outer rim catches outward-rolling marbles. Shared with the collider.
-export const LEVER_OUTER_END:number = -40;
-export const LEVER_RIM_INNER:number = -32;
+export const LEVER_OUTER_END:number = -40 - 1.6 * SPACING;
+export const LEVER_RIM_INNER:number = -32 - 1.6 * SPACING;
 export const LEVER_RIM_TOP:number = -36;
+
+export const LEVER_COUNTERWEIGHT:number = -24 - 1.6 * SPACING;
 
 export class Turnstile extends Part {
   public get canRotate():boolean { return(true); }
@@ -51,31 +53,32 @@ export class Turnstile extends Part {
     if (layer !== Layer.FRONT) {
       g.lineStyle(1.5, 0x111619, 1);
       g.beginFill(0x282c2e);
-      g.moveTo(-9, -6);
-      g.lineTo(LEVER_TIP-42, -5);
-      g.quadraticCurveTo(LEVER_TIP-28, -6, LEVER_TIP-22, -9);
-      g.quadraticCurveTo(LEVER_TIP-12, -6, LEVER_TIP+2, -4);
-      g.lineTo(LEVER_TIP+2, 4);
-      g.quadraticCurveTo(LEVER_TIP-12, 6, LEVER_TIP-22, 9);
-      g.quadraticCurveTo(LEVER_TIP-28, 6, LEVER_TIP-42, 5);
-      g.lineTo(-9, 6);g.closePath();g.endFill();
-      // Pale outer catch tab is integrated with the circular end cap.
-      g.lineStyle(1,0xaeb6ba,1);g.beginFill(0xf5f5f1);
-      g.drawRoundedRect(LEVER_OUTER_END,LEVER_RIM_TOP,
-        LEVER_RIM_INNER-LEVER_OUTER_END,6-LEVER_RIM_TOP,3);g.endFill();
+      g.moveTo(LEVER_COUNTERWEIGHT+15, -6);
+      g.lineTo(LEVER_TIP-38, -6);
+      g.quadraticCurveTo(LEVER_TIP-29, -7, LEVER_TIP-22, -11);
+      g.lineTo(LEVER_TIP-9, -10);
+      // Shallow receiving cup with a raised nose and widened heel.
+      g.quadraticCurveTo(LEVER_TIP-9, -3, LEVER_TIP+2, -5);
+      g.lineTo(LEVER_TIP+2, 5);
+      g.quadraticCurveTo(LEVER_TIP-9, 3, LEVER_TIP-9, 10);
+      g.lineTo(LEVER_TIP-22, 11);
+      g.quadraticCurveTo(LEVER_TIP-29, 7, LEVER_TIP-38, 6);
+      g.lineTo(LEVER_COUNTERWEIGHT+15, 6);g.closePath();g.endFill();
+      // The outer collision guard remains in PartBody but has no artwork.
       g.lineStyle(1.5,0x111619,1);g.beginFill(0x222628);
-      g.drawCircle(-24,0,24);g.endFill();
-      g.lineStyle(1,0x5b6266,1);g.drawCircle(-24,0,19);
-      // Recesses and center moulding follow the supplied physical lever.
-      g.lineStyle(0);g.beginFill(0x0b0d0f);g.drawCircle(36,0,3);
-      g.drawCircle(86,0,3);g.drawRoundedRect(122,-6,7,12,2);g.endFill();
-      g.lineStyle(1,0x565d61,0.8);g.moveTo(5,-3);g.lineTo(LEVER_TIP-45,-2);
+      g.drawCircle(LEVER_COUNTERWEIGHT,0,24);g.endFill();
+      g.lineStyle(1,0x5b6266,1);g.drawCircle(LEVER_COUNTERWEIGHT,0,19);
+      g.lineStyle(0);g.beginFill(0x0b0d0f);
+      g.drawCircle(LEVER_COUNTERWEIGHT+60,0,3);
+      g.drawRoundedRect(-7,-8,14,16,2);g.endFill();
+      g.lineStyle(1,0x565d61,0.8);
+      g.moveTo(LEVER_COUNTERWEIGHT+29,-3);g.lineTo(LEVER_TIP-45,-2);
     }
     if ((layer === Layer.FRONT) || (layer === Layer.SCHEMATIC) ||
         (layer === Layer.SCHEMATIC_2) || (layer === Layer.SCHEMATIC_4) ||
         (layer === Layer.TOOL)) {
       g.lineStyle(1, 0x888e91, 1);
-      g.beginFill(0xe5e7e8); g.drawCircle(0, 0, 4); g.endFill();
+      g.beginFill(0xe5e7e8); g.drawCircle(0, 0, 4.5); g.endFill();
       const cap = new PIXI.Graphics();
       this._caps.set(layer, cap);
       sprite.addChild(cap);
@@ -90,9 +93,9 @@ export class Turnstile extends Part {
     if (cap) {
       cap.clear();
       cap.lineStyle(1.5, 0x10171c, 1);
-      cap.beginFill(this._centerBall.color); cap.drawCircle(-24, 0, 9); cap.endFill();
+      cap.beginFill(this._centerBall.color); cap.drawCircle(LEVER_COUNTERWEIGHT, 0, 9); cap.endFill();
       cap.lineStyle(0); cap.beginFill(0xffffff, 0.6);
-      cap.drawCircle(-27, -3, 2.5); cap.endFill();
+      cap.drawCircle(LEVER_COUNTERWEIGHT-3, -3, 2.5); cap.endFill();
     }
     const sign = this.isFlipped ? -1 : 1;
     const scale = this.size / PART_SIZE;
@@ -114,29 +117,28 @@ export class Turnstile extends Part {
     if (ball.hasActuatedLever || this._passed.has(ball)) return;
     ball.hasActuatedLever = true;
     this._passed.add(ball);
-    if (this.drop) this.drop.releaseBall();
+    if (this.drop) this.drop.releaseBall(this);
   }
 
   public resetWithoutRelease():void {
     Animator.current.stopAnimating(this, 'rotation');
-    this._schematicPulse = true;
-    this.rotation = 0;
-    this._schematicPulse = false;
+    this._schematicPulse = false;this._pulseReturning=false;this.rotation=0;
   }
 
-  // Schematic routing has no rigid-body contact. Animate one tipping cycle
-  // and release once when the marble enters, without a second return event.
+  // Pulses use simulation steps, so Pause freezes both ends of the linkage.
   private _schematicPulse:boolean = false;
+  private _pulseReturning:boolean = false;
+  public get isPulsing():boolean { return this._schematicPulse; }
   public pulse(speed:number, release:boolean=true):void {
-    if (this._schematicPulse) return;
-    this._schematicPulse = true;
-    if (release && this.drop) this.drop.releaseBall();
-    const duration = 0.12 / Math.max(0.25, speed);
-    Animator.current.animate(this, 'rotation', this.rotation, 1, duration, () => {
-      Animator.current.animate(this, 'rotation', 1, 0, duration, () => {
-        this._schematicPulse = false;
-      });
-    });
+    if(this._schematicPulse)return;
+    this._schematicPulse=true;this._pulseReturning=false;
+    if(release&&this.drop)this.drop.releaseBall(this);
+  }
+  public advancePulse(steps:number):void {
+    if(!this._schematicPulse||!(steps>0))return;
+    this.rotation=Math.max(0,Math.min(1,this.rotation+(this._pulseReturning?-1:1)*0.06*steps));
+    if(this.rotation>=1)this._pulseReturning=true;
+    if(this._pulseReturning&&this.rotation<=0)this._schematicPulse=false;
   }
 
   public angleForRotation(r:number, layer:Layer=Layer.MID):number {

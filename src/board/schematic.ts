@@ -40,6 +40,7 @@ export class SchematicBallRouter implements IBallRouter {
     this.board.supplyGuide.sync();
     const iterations:number = Math.ceil(speed * 8);
     for (let i:number = 0; i < iterations; i++) {
+      for(const drop of this.board.drops)for(const lever of drop.turnstiles)lever.advancePulse(0.25);
       for (const ball of this.balls) {
         if (this.board.outputRegister.has(ball)||this.board.supplyGuide.has(ball)) continue;
         ball.vx = ball.vy = 0;

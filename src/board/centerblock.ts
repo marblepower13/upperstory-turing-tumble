@@ -30,3 +30,12 @@ export function centerBlocks(board:Board):CenterBlock[] {
   }
   return blocks;
 }
+
+// Short, flush continuations of the lower board ramps meet the widened lever
+// heels at rest; they leave the receiving cups and downward sweep clear.
+export function leverInletVertices(block:CenterBlock):{x:number,y:number}[][] {
+  return [-1,1].map(sign => [
+    {x:1.54,y:-0.565},{x:0.84,y:-0.215},
+    {x:0.86,y:0.02},{x:1.54,y:-0.25}
+  ].map(p => ({x:(block.column+sign*p.x)*SPACING,y:(block.row+p.y)*SPACING})));
+}

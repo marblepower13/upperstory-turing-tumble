@@ -11,11 +11,11 @@ import { Colors, Alphas } from 'ui/config';
 import { Gearbit, GearBase } from 'parts/gearbit';
 import { PartBody, PartBodyFactory } from 'parts/partbody';
 
-import { SPACING } from './constants';
+import { SPACING, PART_CATEGORY, BALL_CATEGORY } from './constants';
 import { Animator } from 'ui/animator';
 import { PartType } from 'parts/factory';
 import { Turnstile } from 'parts/turnstile';
-import { centerBlocks, CENTER_BLOCK_VERTICES } from './centerblock';
+import { centerBlocks, CENTER_BLOCK_VERTICES, leverInletVertices } from './centerblock';
 
 export type PartBallContact = {
   ballPartBody: PartBody,
@@ -59,6 +59,7 @@ export class PhysicalBallRouter implements IBallRouter {
     this._stepBudget = Math.max(0, this._stepBudget - iterations);
     this.engine.timing.timeScale = 1;
     for (let i:number = 0; i < iterations; i++) {
+      for(const drop of this.board.drops)for(const lever of drop.turnstiles)lever.advancePulse(1);
       this.beforeUpdate();
       Engine.update(this.engine);
       this.afterUpdate();
@@ -92,6 +93,7 @@ export class PhysicalBallRouter implements IBallRouter {
   }
   private _boardChangeCounter:number = -1;
   private _centerBlockBodies:Body[] = [];
+  private _inletBodies:Body[] = [];
   private _centerBlockSignature:string = '';
   private _syncCenterBlocks():boolean {
     const blocks = centerBlocks(this.board);
@@ -100,6 +102,8 @@ export class PhysicalBallRouter implements IBallRouter {
     this._centerBlockSignature = signature;
     for (const body of this._centerBlockBodies) World.remove(this.engine.world, body);
     this._centerBlockBodies = [];
+    for (const body of this._inletBodies) World.remove(this.engine.world, body);
+    this._inletBodies = [];
     for (const block of blocks) {
       const vertices = CENTER_BLOCK_VERTICES.map(v => ({
         x: block.column * SPACING + v.x, y: block.row * SPACING + v.y
@@ -109,6 +113,12 @@ export class PhysicalBallRouter implements IBallRouter {
         label: 'Fixed center block', friction: 0.02, restitution: 0.02});
       this._centerBlockBodies.push(body);
       World.add(this.engine.world, body);
+      for (const points of leverInletVertices(block)) {
+        const inlet = Body.create({vertices:points,position:Vertices.centre(points),isStatic:true,
+          label:'Flush lever inlet',friction:0.02,restitution:0.02,
+          collisionFilter:{category:PART_CATEGORY,mask:BALL_CATEGORY,group:0}});
+        this._inletBodies.push(inlet);World.add(this.engine.world,inlet);
+      }
     }
     return true;
   }
@@ -156,7 +166,7 @@ export class PhysicalBallRouter implements IBallRouter {
     const actuations:Map<Ball, Turnstile[]> = new Map();
     for (const [partBody, hits] of contacts.entries()) {
       const lever = partBody.part;
-      if (!(lever instanceof Turnstile) || lever.rotation <= 0.025) continue;
+      if (!(lever instanceof Turnstile) || lever.rotation < 0.55) continue;
       for (const hit of hits) {
         const ball = hit.ballPartBody.part as Ball;
         if (!actuations.has(ball)) actuations.set(ball, []);
@@ -257,7 +267,7 @@ export class PhysicalBallRouter implements IBallRouter {
       if (! map.has(partBody)) map.set(partBody, new Set());
       map.get(partBody).add(ballPartBody);
     }
-    // The outer pivot is offset from the indexed receiving point. Keep the
+    // The hinge is offset from the indexed receiving point. Keep the
     // lever depressed only while a marble is passing its inner tip.
     for (const [part, partBody] of this._parts.entries()) {
       if (!(part instanceof Turnstile)) continue;

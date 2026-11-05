@@ -21,10 +21,10 @@ export class Drop extends Part {
 
   // a flag to set signalling a desire to release a ball, which will be cleared
   //  after a ball is released
-  public releaseOverride:() => boolean = null;
-  public releaseBall():void {
+  public releaseOverride:(lever?:Turnstile) => boolean = null;
+  public releaseBall(lever?:Turnstile):void {
     if(this.releaseOverride){
-      if(this.releaseOverride() && this.onRelease)this.onRelease();
+      if(this.releaseOverride(lever) && this.onRelease)this.onRelease();
       return;
     }
     // find the ball closest to the bottom right

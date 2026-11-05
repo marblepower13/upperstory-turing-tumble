@@ -16,7 +16,7 @@ import { Drop } from 'parts/drop';
 import { ColorWheel, DropButton, TurnButton, BallCounter } from './controls';
 import { Animator } from 'ui/animator';
 import { Turnstile } from 'parts/turnstile';
-import { centerBlocks, CENTER_BLOCK_VERTICES } from './centerblock';
+import { centerBlocks, CENTER_BLOCK_VERTICES, leverInletVertices } from './centerblock';
 import { SupplyGuide } from './supplyguide';
 import { OutputRegister } from './outputregister';
 import { makeKeyHandler } from 'ui/keyboard';
@@ -208,6 +208,11 @@ export class Board {
     g.clear();
     const scale = this.spacing / SPACING;
     for (const block of blocks) {
+      for (const vertices of leverInletVertices(block)) {
+        g.lineStyle(Math.max(0.5, scale), 0xb7bec1, 1);g.beginFill(0xfafaf8);
+        g.drawPolygon(vertices.map(v => [this.xForColumn(v.x/SPACING),this.yForRow(v.y/SPACING)])
+          .reduce((a,p) => a.concat(p),[]));g.endFill();
+      }
       const x = this.xForColumn(block.column), y = this.yForRow(block.row);
       g.lineStyle(Math.max(0.5, scale), 0xc7cccf, 1);
       g.beginFill(0xf9f9f7);
@@ -1577,7 +1582,10 @@ export class Board {
     this._actionPart = this.getPart(column, row);
     let ball:Ball;
     const releaser=this.supplyGuide.buttonAt(c,r);
-    if(releaser){this._action=ActionType.DROP_BALL;this._actionPart=releaser;cursor='pointer';}
+    if(this.tool===ToolType.PART&&this.partPrototype&&this.partPrototype.type===PartType.BALL&&this.marbleSupplyAt(c,r)){
+      this._action=ActionType.PLACE_BALL;cursor='pointer';
+    }
+    else if(releaser){this._action=ActionType.DROP_BALL;this._actionPart=releaser;cursor='pointer';}
     else if (this._controlKeyDown) {
       this._action = ActionType.PAN;
       cursor = 'all-scroll';

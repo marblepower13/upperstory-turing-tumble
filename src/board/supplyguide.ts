@@ -3,26 +3,33 @@ import { Board } from './board';
 import { Drop } from 'parts/drop';
 import { Ball } from 'parts/ball';
 import { Part } from 'parts/part';
+import { Turnstile } from 'parts/turnstile';
 import { PartType } from 'parts/factory';
 import { SPACING, BALL_RADIUS } from './constants';
 import { Renderer } from 'renderer';
 type Point = {c:number,r:number};
 type Trip = {drop:Drop,ball:Ball,path:Point[],lengths:number[],distance:number};
+type Stroke = {lever:Turnstile,ball:Ball,progress:number,returning:boolean,discharged:boolean};
 const PITCH = (BALL_RADIUS*2+0.5)/SPACING;
-// The upper rails feed outward into the releaser, then return inward to the
-// original first peg. The board's ramp/counterweight physics are unchanged.
+const CUP = 0.36;
+const RELEASE = 0.55;
+// Stock, rotating cups and the upper return feed are guided; playable ramp
+// and bit dynamics are unchanged. One accepted press reserves one marble.
 export class SupplyGuide {
   constructor(private board:Board) { }
   public readonly view = new PIXI.Graphics();
   private supplies:Drop[] = [];
   private parked:Map<Drop,Ball[]> = new Map();
   private trips:Map<Ball,Trip> = new Map();
+  private strokes:Map<Drop,Stroke> = new Map();
+  private feed:Map<Drop,number> = new Map();
   private complete:WeakSet<Ball> = new WeakSet();
   private signature:string = '';
   private drawing:string = '';
-  private overrides:Map<Drop,()=>boolean> = new Map();
+  private overrides:Map<Drop,(lever?:Turnstile)=>boolean> = new Map();
   public has(ball:Ball):boolean {
     if(this.trips.has(ball))return true;
+    for(const stroke of this.strokes.values())if(stroke.ball===ball&&!stroke.discharged)return true;
     for(const balls of this.parked.values())if(balls.indexOf(ball)>=0)return true;
     return false;
   }
@@ -30,6 +37,19 @@ export class SupplyGuide {
   public get active():boolean { return this.supplies.length>0; }
   public disc(drop:Drop):Point {
     return {c:drop.isFlipped?this.board.columnCount-0.55:-0.45,r:drop.row-0.4};
+  }
+  public progress(drop:Drop):number {
+    const stroke=this.strokes.get(drop);
+    if(stroke&&!stroke.lever)return stroke.progress;
+    let progress=0;
+    for(const lever of drop.turnstiles)if(this.board.getPart(lever.column,lever.row)===lever)
+      progress=Math.max(progress,Math.min(1,Math.max(0,lever.rotation)));
+    return progress;
+  }
+  public angle(drop:Drop):number { return (drop.isFlipped?-1:1)*this.progress(drop)*Math.PI/2; }
+  private cup(drop:Drop,progress:number):Point {
+    const p=this.disc(drop),a=progress*Math.PI/2,sign=drop.isFlipped?-1:1;
+    return {c:p.c+sign*CUP*Math.cos(a),r:p.r+CUP*Math.sin(a)};
   }
   public buttonAt(c:number,r:number):Drop {
     this.sync();
@@ -39,7 +59,7 @@ export class SupplyGuide {
   }
   public supplyAt(c:number,r:number):Drop {
     this.sync();const center=(this.board.columnCount-1)/2;
-    for(const drop of this.supplies)if(r>=drop.row-1.5&&r<=drop.row-0.2&&
+    for(const drop of this.supplies)if(r>=drop.row-1.5&&r<=drop.row+0.12&&
       (drop.isFlipped?c>=center&&c<=this.board.columnCount-0.15:c>=-0.85&&c<center))return drop;
     return null;
   }
@@ -51,22 +71,22 @@ export class SupplyGuide {
   }
   public remove(ball:Ball):void {
     this.trips.delete(ball);this.complete.delete(ball);
+    for(const stroke of this.strokes.values())if(stroke.ball===ball)stroke.ball=null;
     for(const [drop,balls] of this.parked)this.parked.set(drop,balls.filter(b=>b!==ball));
   }
-  public clear():void { this.parked.clear();this.trips.clear();this.complete=new WeakSet(); }
+  public clear():void {
+    this.parked.clear();this.trips.clear();this.strokes.clear();this.feed.clear();this.complete=new WeakSet();this.drawing='';
+  }
   public sync():void {
     const eligible:Drop[]=[];
     if(this.board.drops)
       for(const drop of this.board.drops)if(drop.isLocked&&this.board.getPart(drop.column,drop.row)===drop)eligible.push(drop);
-    // The top supplies remain usable even when a custom board has no bottom
-    // levers. Only the matched standard pair uses the guided supply layout.
-    if(eligible.length!==2 || eligible[0].isFlipped===eligible[1].isFlipped ||
-       eligible[0].row!==eligible[1].row)eligible.length=0;
+    if(eligible.length!==2 || eligible[0].isFlipped===eligible[1].isFlipped || eligible[0].row!==eligible[1].row)eligible.length=0;
     const signature=eligible.map(d=>d.column+','+d.row+','+d.isFlipped).join(';')+':'+this.board.columnCount;
     if(signature!==this.signature){
       for(const [drop,override] of this.overrides)if(drop.releaseOverride===override)drop.releaseOverride=null;
-      this.overrides.clear();this.clear();this.supplies=eligible;this.signature=signature;this.drawing='';
-      for(const drop of eligible){const override=()=>this.release(drop);drop.releaseOverride=override;this.overrides.set(drop,override);}
+      this.overrides.clear();this.clear();this.supplies=eligible;this.signature=signature;
+      for(const drop of eligible){const override=(lever?:Turnstile)=>this.release(drop,lever);drop.releaseOverride=override;this.overrides.set(drop,override);}
     }
     for(const drop of this.supplies){
       let balls=(this.parked.get(drop)||[]).filter(b=>this.board.balls.has(b)&&b.drop===drop);
@@ -74,39 +94,63 @@ export class SupplyGuide {
           !ball.hasActuatedLever&&!this.complete.has(ball)&&!this.trips.has(ball)&&
           ball.row<=drop.row+0.5&&balls.indexOf(ball)<0)balls.push(ball);
       this.parked.set(drop,balls);
-      const sign=drop.isFlipped?-1:1;
-      const first=drop.isFlipped?this.board.columnCount-0.95:-0.05;
-      let offset=0;
-      for(const trip of this.trips.values())if(trip.drop===drop && trip.ball.row<drop.row-0.3)
-        offset=Math.max(offset,sign*(trip.ball.column-first)/PITCH+1);
+      const p=this.disc(drop),sign=drop.isFlipped?-1:1,stroke=this.strokes.get(drop);
+      const offset=stroke?1:(this.feed.get(drop)||0),progress=this.progress(drop);
       balls.forEach((ball,i)=>{
         const index=i+offset;
-        const c=first+sign*index*PITCH,r=drop.row-0.75-index*0.018;
-        if(ball.column!==c||ball.row!==r)this.board.layoutPart(ball,c,r);
+        const q=index===0?this.cup(drop,progress):{c:p.c+sign*(CUP+index*PITCH),r:p.r-index*PITCH*0.52/Math.abs((this.board.columnCount-1)/2-(p.c+sign*0.43))};
+        if(ball.column!==q.c||ball.row!==q.r)this.board.layoutPart(ball,q.c,q.r);
         ball.vx=ball.vy=0;
       });
+      if(stroke&&stroke.ball&&!stroke.discharged){
+        const q=this.cup(drop,progress);this.board.layoutPart(stroke.ball,q.c,q.r);stroke.ball.vx=stroke.ball.vy=0;
+      }
     }
   }
-  private release(drop:Drop):boolean {
-    this.sync();const balls=this.parked.get(drop);if(!balls||!balls.length)return false;
-    const ball=balls.shift(),p=this.disc(drop),sign=drop.isFlipped?-1:1;
-    const path=[{c:ball.column,r:ball.row},{c:p.c+sign*0.08,r:p.r+0.12},
-      {c:p.c+sign*0.22,r:drop.row+0.08},{c:drop.column+sign*0.65,r:drop.row+0.35}];
+  private release(drop:Drop,lever?:Turnstile):boolean {
+    this.sync();
+    if(this.strokes.has(drop)||(this.feed.get(drop)||0)>0)return false;
+    const balls=this.parked.get(drop);if(!balls||!balls.length)return false;
+    const ball=balls.shift();ball.released=true;
+    this.strokes.set(drop,{lever:lever||null,ball:ball,progress:lever?Math.min(1,Math.max(0,lever.rotation)):0,returning:false,discharged:false});
+    this.sync();this.draw();Renderer.needsUpdate();return true;
+  }
+  private discharge(drop:Drop,stroke:Stroke):void {
+    const ball=stroke.ball;if(!ball||!this.board.balls.has(ball)){stroke.discharged=true;return;}
+    const p=this.disc(drop),sign=drop.isFlipped?-1:1;
+    const path=[{c:ball.column,r:ball.row},{c:p.c+sign*0.20,r:p.r+0.66},
+      {c:drop.column+sign*0.65,r:drop.row+0.35}];
     const lengths=[0];
     for(let i=1;i<path.length;i++)lengths.push(lengths[i-1]+Math.sqrt(Math.pow(path[i].c-path[i-1].c,2)+Math.pow(path[i].r-path[i-1].r,2))*SPACING);
-    this.trips.set(ball,{drop:drop,ball:ball,path:path,lengths:lengths,distance:0});
-    ball.released=true;this.drawing='';this.sync();Renderer.needsUpdate();return true;
+    this.trips.set(ball,{drop:drop,ball:ball,path:path,lengths:lengths,distance:0});stroke.discharged=true;
   }
   public advance(steps:number):void {
+    if(!(steps>0))return;
     this.sync();
+    for(const drop of this.supplies){
+      const stroke=this.strokes.get(drop);
+      if(stroke){
+        if(!stroke.lever){
+          stroke.progress=Math.max(0,Math.min(1,stroke.progress+(stroke.returning?-1:1)*0.06*steps));
+          if(stroke.progress>=1)stroke.returning=true;
+        }else stroke.progress=this.progress(drop);
+        if(!stroke.discharged&&stroke.progress>=RELEASE){
+          const q=this.cup(drop,stroke.progress);
+          if(stroke.ball)this.board.layoutPart(stroke.ball,q.c,q.r);
+          this.discharge(drop,stroke);
+        }
+        if(stroke.discharged&&stroke.progress<=0.015&&(stroke.lever||stroke.returning)){
+          this.strokes.delete(drop);this.feed.set(drop,1);
+        }
+      }else if((this.feed.get(drop)||0)>0)this.feed.set(drop,Math.max(0,this.feed.get(drop)-0.08*steps));
+    }
     const ahead:Map<Drop,number>=new Map();
     for(const [ball,trip] of Array.from(this.trips.entries())){
       if(!this.board.balls.has(ball)){this.trips.delete(ball);continue;}
       const last=trip.lengths[trip.lengths.length-1];
       let next=trip.distance+3*steps;
       if(ahead.has(trip.drop))next=Math.min(next,last-ahead.get(trip.drop)-PITCH*SPACING);
-      trip.distance=Math.max(trip.distance,Math.min(last,next));
-      ahead.set(trip.drop,last-trip.distance);
+      trip.distance=Math.max(trip.distance,Math.min(last,next));ahead.set(trip.drop,last-trip.distance);
       let p=trip.path[trip.path.length-1];
       if(trip.distance<last)for(let i=1;i<trip.path.length;i++)if(trip.distance<=trip.lengths[i]){
         const t=(trip.distance-trip.lengths[i-1])/(trip.lengths[i]-trip.lengths[i-1]);
@@ -115,10 +159,10 @@ export class SupplyGuide {
       this.board.layoutPart(ball,p.c,p.r);ball.vx=ball.vy=0;Renderer.needsUpdate();
       if(trip.distance>=last){this.trips.delete(ball);this.complete.add(ball);ball.released=true;}
     }
-    this.sync();
+    this.sync();this.draw();
   }
   public draw():void {
-    this.sync();const signature=this.signature+':'+this.board.spacing;
+    this.sync();const signature=this.signature+':'+this.board.spacing+':'+this.supplies.map(d=>this.progress(d)).join(',');
     if(signature===this.drawing)return;this.drawing=signature;
     const g=this.view;g.clear();if(!this.active)return;
     const s=this.board.spacing;
@@ -127,17 +171,21 @@ export class SupplyGuide {
     };
     const center=(this.board.columnCount-1)/2;
     for(const drop of this.supplies){
-      const p=this.disc(drop),sign=drop.isFlipped?-1:1,x=this.board.xForColumn(p.c),y=this.board.yForRow(p.r);
-      for(const path of [[{c:center,r:drop.row-0.95},{c:p.c+sign*0.1,r:drop.row-0.57}],
+      const p=this.disc(drop),sign=drop.isFlipped?-1:1,x=this.board.xForColumn(p.c),y=this.board.yForRow(p.r),a=this.progress(drop)*Math.PI/2;
+      for(const path of [[{c:center,r:drop.row-0.78},{c:p.c+sign*0.43,r:p.r+0.14}],
         [{c:p.c,r:drop.row+0.12},{c:drop.column+sign*0.7,r:drop.row+0.5}],
-        [{c:center,r:drop.row-1.38},{c:p.c,r:drop.row-0.92}]]){
+        [{c:center,r:drop.row-1.21},{c:p.c,r:drop.row-0.92}]]){
         stroke(path,0.085,0xb7bec1);stroke(path,0.045,0xfafaf8);
       }
       g.lineStyle(0.035*s,0xc1c6c8,1);g.beginFill(0xfdfdfb);g.drawCircle(x,y,0.50*s);g.endFill();
-      g.lineStyle(0.018*s,0x151719,1);g.beginFill(0x25292b);g.drawCircle(x,y,0.43*s);g.endFill();
-      g.lineStyle(0);g.beginFill(0x080a0b);g.drawCircle(x,y,0.075*s);g.endFill();
-      g.beginFill(0xf4f4f1);g.drawCircle(x-sign*0.38*s,y-0.06*s,0.13*s);g.endFill();
-      g.lineStyle(0.018*s,0x6b7275,1);g.moveTo(x+sign*0.20*s,y-0.05*s);g.lineTo(x+sign*0.32*s,y-0.05*s);
+      // A concave outline leaves an actual cupped opening in the disk.
+      const poly:number[]=[];
+      const add=(u:number,v:number):void=>{poly.push(x+sign*(u*Math.cos(a)-v*Math.sin(a))*s,y+(u*Math.sin(a)+v*Math.cos(a))*s);};
+      const cut=Math.asin(0.17/0.43);
+      for(let i=0;i<=56;i++){const t=cut+(Math.PI*2-2*cut)*i/56;add(0.43*Math.cos(t),0.43*Math.sin(t));}
+      for(let i=0;i<=24;i++){const t=-Math.PI/2-Math.PI*i/24;add(CUP+0.17*Math.cos(t),0.17*Math.sin(t));}
+      g.lineStyle(0.018*s,0x151719,1);g.beginFill(0x25292b);g.drawPolygon(poly);g.endFill();
+      g.lineStyle(0.012*s,0xaeb5b8,1);g.beginFill(0xf5f5f2);g.drawCircle(x,y,0.055*s);g.endFill();
     }
     Renderer.needsUpdate();
   }
