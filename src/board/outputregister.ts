@@ -168,7 +168,10 @@ export class OutputRegister {
         {x:head.x+sign*0.20*SPACING,y:(this.row+1.6)*SPACING}];
       stroke(mouth,5,0xb5bec3);stroke(mouth,2,0xfafafa);
     }
-    stroke(this.path,32,0xb5bec3);stroke(this.path,26,0xffffff);
+    // Start the visible channel at the angled inlet, rather than above it.
+    // The guided centerline still begins earlier inside the open funnel.
+    const visiblePath=this.path.map((p,i)=>i===0?{x:p.x,y:(this.row+1.6)*SPACING}:p);
+    stroke(visiblePath,32,0xb5bec3);stroke(visiblePath,26,0xffffff);
     const end=this.path[this.path.length-1];
     stroke([{x:end.x,y:end.y-16},{x:end.x,y:end.y+16}],5,0x7d8d96);
     Renderer.needsUpdate();

@@ -11,7 +11,7 @@ server:
 
 # APP
 
-app: dependencies docs/index.html docs/app.js docs/classroom-ui.css docs/classroom-ui.js docs/images/release-lever.svg
+app: dependencies docs/index.html docs/app.js docs/classroom-ui.css docs/classroom-ui.js docs/images/release-lever.svg docs/images/turing-tumble-logo.png docs/images/upper-story-logo.png
 
 docs/index.html: src/index.html
 	mkdir -p docs
@@ -103,4 +103,12 @@ docs/classroom-ui.js: src/classroom-ui.js
 	cp $< $@
 
 docs/images/release-lever.svg: src/svg/release-lever.svg
+	cp $< $@
+
+docs/images/turing-tumble-logo.png: src/images/turing-tumble-logo.png
+	mkdir -p docs/images
+	cp $< $@
+
+docs/images/upper-story-logo.png: src/images/upper-story-logo.png
+	mkdir -p docs/images
 	cp $< $@

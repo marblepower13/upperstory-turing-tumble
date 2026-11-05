@@ -3,6 +3,37 @@
 This package updates the existing marblepower13/upperstory-turing-tumble repository.
 It is an update package, not a complete standalone checkout.
 
+## Physical board appearance, branding and controls - November 5, 2026
+
+- Replaced the compact standard supply cups with long sloped rails, circular
+  black releasers at the outer ends, and inward feed channels to the original
+  first mounting positions. One click on either black releaser releases one
+  marble, independently of the selected tool. Repeated clicks reserve separate
+  marbles; the feeder retains their order. Pause freezes guided travel as well
+  as board marble movement. Standard supplies start with eight per color and
+  were tested with twenty per color.
+- Revised the bottom lever appearance using the supplied reference: circular
+  end caps, slender moulded arms, recesses and shaped inner tips. Retained the
+  tested collision geometry, depression limits and outer-end catch protection.
+- Made the output-channel mouth flush with its angled inlet rails. The change
+  removes the two protruding visual joins without changing register routing.
+- Replaced the text heading with the supplied Turing Tumble logo. Added the
+  supplied Upper Story logo at lower left and the requested product-page link.
+- Added Instructions above Tools. The full usage text now lives there, with
+  F shortcut and Play/Pause instructions. Help contains only the support
+  contact at hello@upperstory.com. Attribution remains within Instructions.
+- Added F to flip the selected placement preview. Input fields, open dialogs,
+  modified/repeated keypresses, and Interceptor/Gear/Add marbles are excluded.
+  The symmetric Crossover has no different left/right appearance; its tooltip
+  explains that. Extra part tooltips also describe F.
+- Added Play and Pause below the board. Pause keeps the selected speed for
+  resume; Reset all restores normal speed. Fit includes the wider upper rails.
+- Ramp/counterweight implementation, ramp collision vertices, friction/density
+  constants and ramp traversal helpers are unchanged. No frame-rate or ramp
+  timing calibration is included in this update.
+- Both logos are included in src/images and docs/images; make app copies them.
+  Source, compiled hosting code and current verification results are included.
+
 ## Single-file output register and page title
 
 - Added the approved longer output track with a guided inlet and space for 40
@@ -116,7 +147,7 @@ It is an update package, not a complete standalone checkout.
 4. Drag the contents of this update folder into the upload area: docs, src, makefile,
    package-lock.json, CLASSROOM_UPDATE.md, and PHYSICS_TEST_RESULTS.md. Do not drag the enclosing update folder
    or the ZIP itself. Preserve the folder names so docs/index.html replaces docs/index.html.
-5. Review the file paths. Enter a commit message such as "Add classroom simulator controls"
+5. Review the file paths. Enter a commit message such as "Update physical board design and controls"
    and commit directly to master.
 6. GitHub Pages should publish the changes using your existing master /docs settings.
    After deployment completes, open the simulator and hard-refresh if it still shows

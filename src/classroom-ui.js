@@ -4,6 +4,9 @@
   'use strict';
   const NS = 'http://www.w3.org/2000/svg';
   const paths = {
+    instructions: '<path d="M3 5h10l3 3 3-3h10v22H19l-3 3-3-3H3zM16 8v22M6 10h6M6 15h6M20 10h6M20 15h6"/>',
+    play: '<path fill="currentColor" d="M9 5l19 11L9 27z"/>',
+    pause: '<path fill="currentColor" d="M8 5h5v22H8zM20 5h5v22h-5z"/>',
     hand: '<path d="M8 14V5a2 2 0 014 0v6-1a2 2 0 014 0v1a2 2 0 014 0v2a2 2 0 014 0v6c0 4-3 7-7 7h-3c-2 0-3-1-5-3l-5-6a2 2 0 013-3l4 3"/>',
     eraser: '<path d="M4 19L18 5a2 2 0 013 0l7 7a2 2 0 010 3L16 27H10l-6-5a2 2 0 010-3zM12 11l12 12M16 27h12"/>',
     reset: '<path d="M7 9a11 11 0 111 16M7 3v7h7"/>',
@@ -19,7 +22,7 @@
     const img = document.createElement('img'); img.src = name === 'release-lever' ? 'images/release-lever.svg' : 'images/usage/' + name + '.png'; img.alt = ''; img.draggable = false; return img;
   }
   const ui = document.createElement('div'); ui.id = 'classroom-ui';
-  ui.innerHTML = '<h1 id="simulator-title">Turing Tumble Simulator</h1><aside class="sidebar left" aria-label="Building tools"><section class="panel" id="tools"><h2>TOOLS</h2></section><section class="panel" id="parts"><h2>PARTS</h2></section></aside><aside class="sidebar right" aria-label="Simulation controls"><div id="reset-slot"></div><section class="panel" id="actions"></section><div class="bottom" id="more"></div></aside><div id="tooltip" role="tooltip" hidden></div><div id="status" role="status" aria-live="polite"></div>';
+  ui.innerHTML = '<h1 id="simulator-title"><img src="images/turing-tumble-logo.png" alt="Turing Tumble"></h1><aside class="sidebar left" aria-label="Building tools"><div id="instructions-slot"></div><section class="panel" id="tools"><h2>TOOLS</h2></section><section class="panel" id="parts"><h2>PARTS</h2></section><div class="brand"><img src="images/upper-story-logo.png" alt="Upper Story"><a href="https://www.upperstory.com/en/turingtumble/" target="_blank" rel="noopener noreferrer">Learn More About Turing Tumble</a></div></aside><aside class="sidebar right" aria-label="Simulation controls"><div id="reset-slot"></div><section class="panel" id="actions"></section><div class="bottom" id="more"></div></aside><div id="transport" aria-label="Playback controls"></div><div id="tooltip" role="tooltip" hidden></div><div id="status" role="status" aria-live="polite"></div>';
   document.body.appendChild(ui);
   const tooltip = ui.querySelector('#tooltip');
   let tipOwner = null, tipTimer = 0, statusTimer = 0;
@@ -51,15 +54,20 @@
     const sim = event.detail.sim, Builder = event.detail.BoardBuilder, board = sim.board, bar = sim.actionbar;
     sim.classroomControls = true; sim.refreshLayout();
     const toolButtons = [];
+    let lastPlayingSpeed = board.speed || 1;
     function sync() {
+      if(board.speed>0)lastPlayingSpeed=board.speed;
+      playButton.disabled=board.speed>0;pauseButton.disabled=board.speed===0;
       toolButtons.forEach(pair => pair[0].setAttribute('aria-pressed', pair[1].isToggled ? 'true' : 'false'));
       zin.disabled = !bar.canZoomIn; zout.disabled = !bar.canZoomOut; faster.disabled = !bar.canGoFaster; slower.disabled = !bar.canGoSlower;
       speed.textContent = board.speed === 0 ? 'Paused — click Faster to resume' : 'Speed: ' + board.speed + '×';
       schematic.setAttribute('aria-pressed', board.schematic ? 'true' : 'false');
     }
+    const playButton=button(ui.querySelector('#transport'),'play','Play','play','Resume at the previously selected speed.',()=>{board.speed=lastPlayingSpeed;sync();});
+    const pauseButton=button(ui.querySelector('#transport'),'pause','Pause','pause','Pause marble motion. Keep the board and current sequence.',()=>{if(board.speed>0)lastPlayingSpeed=board.speed;board.speed=0;sync();});
     function choose(index) { sim.toolbar.onButtonClick(sim.toolbar._buttons[index]); sync(); }
     function tool(parent,id,label,image,tip,index) { const b=button(parent,id,label,image,tip,()=>choose(index));toolButtons.push([b,sim.toolbar._buttons[index]]);return b; }
-    tool(ui.querySelector('#tools'),'select-flip','Select / Flip','hand','Click a component to flip it. Drag a component to move it. Click a marble release to start.',0);
+    tool(ui.querySelector('#tools'),'select-flip','Select / Flip','hand','Click a component to flip it. Drag a component to move it. Click a black circular releaser at the top to release one marble.',0);
     tool(ui.querySelector('#tools'),'remove-part','Remove part','eraser','Remove a component. Board pegs and fixed board pieces stay in place.',1);
     const partSpecs = [
       ['ramp','Ramp','Ramp-t','Direct marbles left or right.',2],
@@ -75,11 +83,11 @@
       if (s[0] === 'add-marbles') tip = 'Click the blue or red holding area to add one matching marble.';
       else {
         tip += ' Select, then click a peg to place.';
-        if (s[0] !== 'interceptor' && s[0] !== 'gear') tip += ' Click the selected tool again to flip its orientation.';
+        if (s[0] !== 'interceptor' && s[0] !== 'gear') tip += s[0] === 'crossover' ? ' F: this symmetric part has the same appearance in either direction.' : ' Press F or click the selected tool again to flip the placement preview.';
       }
       tool(ui.querySelector('#parts'),s[0],s[1],s[2],tip,s[4]);
     });
-    const hint=document.createElement('p');hint.className='hint';hint.textContent='Select / Flip: click to flip a part; drag to move it.';ui.querySelector('#parts').appendChild(hint);
+    const hint=document.createElement('p');hint.className='hint';hint.textContent='Press F to flip the selected placement preview. Select / Flip: click to flip a part; drag to move it.';ui.querySelector('#parts').appendChild(hint);
     const actions=ui.querySelector('#actions');
     const zin=button(actions,'zoom-in','Zoom in','zoomin','Enlarge the view without changing the board.',()=>{bar.zoomIn();sync();});
     const zout=button(actions,'zoom-out','Zoom out','zoomout','Show more of the board without changing its size.',()=>{bar.zoomOut();sync();});
@@ -99,16 +107,27 @@
     const schematic=button(advanced,'schematic','Schematic view','schematic','Switch between physical animation and a simplified schematic. Switching returns marbles to the top.',()=>{board.schematic=!board.schematic;sim.toolbar.updateToggled();sync();});
     const resizeLabel=document.createElement('label');resizeLabel.className='check';const resizeCheck=document.createElement('input');resizeCheck.type='checkbox';resizeCheck.addEventListener('change',()=>{board.allowBoardResize=resizeCheck.checked;});resizeLabel.appendChild(resizeCheck);resizeLabel.appendChild(document.createTextNode('Allow resizing by dragging board edges'));advanced.appendChild(resizeLabel);
     h=document.createElement('h3');h.textContent='Extra building tools';advanced.appendChild(h);const extra=document.createElement('div');extra.className='dialog-grid';advanced.appendChild(extra);
-    [['supply','Marble supply','Drop-t',9],['release-lever','Release lever','release-lever',10],['wall','Wall','Side-t',11],['slope','Slope','Slope-t',12]].forEach(s=>{const b=tool(extra,s[0],s[1],s[2],'Select this extra part, then click the board to place it.',s[3]); b.addEventListener('click',()=>advanced.close());});
+    [['supply','Marble supply','Drop-t',9],['release-lever','Release lever','release-lever',10],['wall','Wall','Side-t',11],['slope','Slope','Slope-t',12]].forEach(s=>{const b=tool(extra,s[0],s[1],s[2],'Select this extra part, then click the board to place it. Press F to flip its placement preview.',s[3]); b.addEventListener('click',()=>advanced.close());});
     h=document.createElement('h3');h.textContent='Save and reopen';advanced.appendChild(h);
     button(advanced,'save-board','Save board file','download','Download a board configuration file. It is a PNG data file, not a screenshot.',()=>board.serializer.download());
     button(advanced,'open-board','Open board file','upload','Replace this board with a previously saved simulator PNG file.',()=>{if(window.confirm('Opening a board file will replace your current board. Continue?')){advanced.close();board.serializer.upload(restored=>{if(restored){bar.zoomToFit();sim.toolbar.updateToggled();sync();announce('Board file opened.');}});}});
     closeButton(advanced);
     button(ui.querySelector('#more'),'advanced','Advanced','advanced','Extra tools, schematic view, optional resizing, and save/open controls.',()=>advanced.showModal());
-    const help=dialog('Using the simulator');
-    help.insertAdjacentHTML('beforeend','<ul><li><strong>Build:</strong> select a part, then click a valid peg. Click its toolbar button again to change the placement orientation.</li><li><strong>Select / Flip:</strong> click a placed component to flip it; drag it to move it. Click a marble release to start.</li><li><strong>Add marbles:</strong> select the marbles button below Gear, then click either top holding area to add one marble. The preview and added marble match that supply’s color. Clicking an existing marble adds another; it does not delete it. Reset all starts with eight blue and eight red marbles.</li><li><strong>Remove part:</strong> click or drag over placed components. Pegs and fixed board pieces are protected.</li><li><strong>Fit board to screen:</strong> reset the view to show the entire board. It does not add or remove pegs.</li><li><strong>Faster / Slower:</strong> change animation speed. The slowest setting pauses; Faster resumes.</li><li><strong>Return marbles:</strong> put marbles back at the top, keeping the current component states.</li><li><strong>Output register:</strong> collected marbles stay in a single file, with room for 40. Read the sequence from the first marble at the right-hand stop toward the left.</li><li><strong>Reset all:</strong> clear the machine and restore the standard starting board after confirmation.</li><li><strong>Move the view:</strong> drag empty board space. Use Advanced to enable board-edge resizing.</li></ul><p>Hover over a button or focus it with Tab for an explanation. On narrow screens, Help explains the compact icon controls.</p><p>Simulation and component artwork adapted from <a href="https://github.com/jessecrossen/ttsim" target="_blank" rel="noopener noreferrer">Jesse Crossen’s Turing Tumble Simulator</a>.</p><p>Contact <a href="mailto:hello@upperstory.com">hello@upperstory.com</a> with any questions.</p>');closeButton(help);
-    button(ui.querySelector('#more'),'help','Help','help','Read instructions for building, flipping, running, and resetting machines.',()=>help.showModal());
+    const instructions=dialog('Using the simulator');
+    instructions.insertAdjacentHTML('beforeend','<ul><li><strong>Build:</strong> select a part, then click a valid peg. Press F or click its toolbar button again to change the placement orientation (where applicable).</li><li><strong>Select / Flip:</strong> click a placed component to flip it; drag it to move it. Click a black circular releaser at the top to release one marble.</li><li><strong>Add marbles:</strong> select the marbles button below Gear, then click either top holding area to add one marble. The preview and added marble match that supply’s color. Clicking an existing marble adds another; it does not delete it. Reset all starts with eight blue and eight red marbles.</li><li><strong>Remove part:</strong> click or drag over placed components. Pegs and fixed board pieces are protected.</li><li><strong>Fit board to screen:</strong> reset the view to show the entire board. It does not add or remove pegs.</li><li><strong>Faster / Slower:</strong> change animation speed. The slowest setting pauses; Faster resumes.</li><li><strong>Play / Pause:</strong> use the buttons below the board to pause and resume at your selected speed.</li><li><strong>Return marbles:</strong> put marbles back at the top, keeping the current component states.</li><li><strong>Output register:</strong> collected marbles stay in a single file, with room for 40. Read the sequence from the first marble at the right-hand stop toward the left.</li><li><strong>Reset all:</strong> clear the machine and restore the standard starting board after confirmation.</li><li><strong>Move the view:</strong> drag empty board space. Use Advanced to enable board-edge resizing.</li></ul><p>Hover over a button or focus it with Tab for an explanation. On narrow screens, Instructions explains the compact icon controls.</p><p>Simulation and component artwork adapted from <a href="https://github.com/jessecrossen/ttsim" target="_blank" rel="noopener noreferrer">Jesse Crossen’s Turing Tumble Simulator</a>.</p>');closeButton(instructions);
+    button(ui.querySelector('#instructions-slot'),'instructions','Instructions','instructions','Read instructions for building and using the simulator.',()=>instructions.showModal());
+    const help=dialog('Support');
+    help.insertAdjacentHTML('beforeend','<p>For support, contact <a href="mailto:hello@upperstory.com">hello@upperstory.com</a>.</p>');closeButton(help);
+    button(ui.querySelector('#more'),'help','Help','help','Contact Upper Story for simulator support.',()=>help.showModal());
 
+    window.addEventListener('keydown',event=>{
+      const target=event.target;
+      if(event.key.toLowerCase()!=='f'||event.repeat||event.ctrlKey||event.metaKey||event.altKey||
+          (target&&target.closest&&target.closest('input,textarea,select,[contenteditable="true"]'))||document.querySelector('dialog[open]'))return;
+      const current=toolButtons.find(pair=>pair[1].isToggled);
+      if(!current||['interceptor','gear','add-marbles','select-flip','remove-part'].includes(current[0].id))return;
+      event.preventDefault();sim.toolbar.onButtonClick(current[1]);sync();
+    });
     ui.classList.add('ready');bar.zoomToFit();sync();
     // Keep button states in sync after canvas interactions and imported boards.
     document.addEventListener('pointerup',()=>setTimeout(sync,0));

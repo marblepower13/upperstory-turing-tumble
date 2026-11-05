@@ -51,22 +51,25 @@ export class Turnstile extends Part {
     if (layer !== Layer.FRONT) {
       g.lineStyle(1.5, 0x111619, 1);
       g.beginFill(0x282c2e);
-      g.moveTo(LEVER_OUTER_END, -7);
-      g.lineTo(LEVER_TIP - 10, -5);
-      g.quadraticCurveTo(LEVER_TIP + 2, -5, LEVER_TIP + 2, 0);
-      g.quadraticCurveTo(LEVER_TIP + 2, 5, LEVER_TIP - 10, 5);
-      g.lineTo(LEVER_OUTER_END, 7);
-      g.closePath();
-      g.endFill();
-      g.beginFill(0x282c2e);
-      g.drawRoundedRect(LEVER_OUTER_END, LEVER_RIM_TOP,
-        LEVER_RIM_INNER - LEVER_OUTER_END, 6 - LEVER_RIM_TOP, 3);
-      g.endFill();
-      g.beginFill(0x222628);
-      g.drawCircle(-24, 0, 17);
-      g.endFill();
-      g.lineStyle(1, 0x687075, 0.7);
-      g.moveTo(18, -3); g.lineTo(LEVER_TIP - 12, -2);
+      g.moveTo(-9, -6);
+      g.lineTo(LEVER_TIP-42, -5);
+      g.quadraticCurveTo(LEVER_TIP-28, -6, LEVER_TIP-22, -9);
+      g.quadraticCurveTo(LEVER_TIP-12, -6, LEVER_TIP+2, -4);
+      g.lineTo(LEVER_TIP+2, 4);
+      g.quadraticCurveTo(LEVER_TIP-12, 6, LEVER_TIP-22, 9);
+      g.quadraticCurveTo(LEVER_TIP-28, 6, LEVER_TIP-42, 5);
+      g.lineTo(-9, 6);g.closePath();g.endFill();
+      // Pale outer catch tab is integrated with the circular end cap.
+      g.lineStyle(1,0xaeb6ba,1);g.beginFill(0xf5f5f1);
+      g.drawRoundedRect(LEVER_OUTER_END,LEVER_RIM_TOP,
+        LEVER_RIM_INNER-LEVER_OUTER_END,6-LEVER_RIM_TOP,3);g.endFill();
+      g.lineStyle(1.5,0x111619,1);g.beginFill(0x222628);
+      g.drawCircle(-24,0,24);g.endFill();
+      g.lineStyle(1,0x5b6266,1);g.drawCircle(-24,0,19);
+      // Recesses and center moulding follow the supplied physical lever.
+      g.lineStyle(0);g.beginFill(0x0b0d0f);g.drawCircle(36,0,3);
+      g.drawCircle(86,0,3);g.drawRoundedRect(122,-6,7,12,2);g.endFill();
+      g.lineStyle(1,0x565d61,0.8);g.moveTo(5,-3);g.lineTo(LEVER_TIP-45,-2);
     }
     if ((layer === Layer.FRONT) || (layer === Layer.SCHEMATIC) ||
         (layer === Layer.SCHEMATIC_2) || (layer === Layer.SCHEMATIC_4) ||

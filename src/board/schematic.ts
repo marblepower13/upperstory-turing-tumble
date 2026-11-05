@@ -37,10 +37,11 @@ export class SchematicBallRouter implements IBallRouter {
   public onBoardSizeChanged() { }
 
   public update(speed:number, correction:number):void {
+    this.board.supplyGuide.sync();
     const iterations:number = Math.ceil(speed * 8);
     for (let i:number = 0; i < iterations; i++) {
       for (const ball of this.balls) {
-        if (this.board.outputRegister.has(ball)) continue;
+        if (this.board.outputRegister.has(ball)||this.board.supplyGuide.has(ball)) continue;
         ball.vx = ball.vy = 0;
         ball.minX = ball.maxX = ball.maxY = NaN;
         if (this.routeBall(ball)) {
@@ -55,13 +56,14 @@ export class SchematicBallRouter implements IBallRouter {
       this.confineBalls();
       this.board.outputRegister.capture();
       this.board.outputRegister.advance(0.25);
+      this.board.supplyGuide.advance(0.25);
       GearBase.update();
     }
   }
 
   protected moveBalls():void {
     for (const ball of this.balls) {
-      if(this.board.outputRegister.has(ball))continue;
+      if(this.board.outputRegister.has(ball)||this.board.supplyGuide.has(ball))continue;
       const m = Math.sqrt((ball.vx * ball.vx) + (ball.vy * ball.vy));
       if (m == 0.0) continue;
       const d = Math.min(m, STEP);
@@ -72,7 +74,7 @@ export class SchematicBallRouter implements IBallRouter {
 
   protected confineBalls():void {
     for (const ball of this.balls) {
-      if(this.board.outputRegister.has(ball))continue;
+      if(this.board.outputRegister.has(ball)||this.board.supplyGuide.has(ball))continue;
       if ((! isNaN(ball.maxX)) && (ball.column > ball.maxX)) {
         ball.column = ball.maxX;
       }
@@ -326,7 +328,7 @@ export class SchematicBallRouter implements IBallRouter {
       columns[c].push(ball);
     };
     for (const ball of this.balls) {
-      if(this.board.outputRegister.has(ball))continue;
+      if(this.board.outputRegister.has(ball)||this.board.supplyGuide.has(ball))continue;
       const center = Math.round(ball.column);
       add(ball, center);
       add(ball, center - 1);

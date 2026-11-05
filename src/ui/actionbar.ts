@@ -200,7 +200,7 @@ export class Actionbar extends ButtonBar {
     let s:number = Zooms[0];
     for (let i:number = Zooms.length - 1; i >= 0; i--) {
       s = Zooms[i];
-      const w:number = this.board.columnCount * Math.floor(s * SPACING_FACTOR);
+      const w:number = (this.board.columnCount + 1.0) * Math.floor(s * SPACING_FACTOR);
       const h:number = this.board.rowCount * Math.floor(s * SPACING_FACTOR);
       if ((w <= this.board.width) && (h <= this.board.height)) break;
     }

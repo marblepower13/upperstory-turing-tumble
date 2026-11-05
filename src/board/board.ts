@@ -17,6 +17,7 @@ import { ColorWheel, DropButton, TurnButton, BallCounter } from './controls';
 import { Animator } from 'ui/animator';
 import { Turnstile } from 'parts/turnstile';
 import { centerBlocks, CENTER_BLOCK_VERTICES } from './centerblock';
+import { SupplyGuide } from './supplyguide';
 import { OutputRegister } from './outputregister';
 import { makeKeyHandler } from 'ui/keyboard';
 
@@ -54,6 +55,7 @@ export class Board {
     this._updateDropShadows();
     this._makeControls();
     this._layers.addChildAt(this.outputRegister.view, 0);
+    this._layers.addChildAt(this.supplyGuide.view, 0);
     this._layers.addChild(this._centerBlockView);
     this._bindKeyEvents();
   }
@@ -111,6 +113,7 @@ export class Board {
   private _speed:number = 1.0;
 
   // routers to manage the positions of the balls
+  public readonly supplyGuide:SupplyGuide = new SupplyGuide(this);
   public readonly outputRegister:OutputRegister = new OutputRegister(this);
   public readonly physicalRouter:PhysicalBallRouter = new PhysicalBallRouter(this);
   public readonly schematicRouter:SchematicBallRouter = 
@@ -143,6 +146,7 @@ export class Board {
   protected _updateSpriteVisibility():void {
     this._drawCenterBlocks();
     this.outputRegister.draw();
+    this.supplyGuide.draw();
     // get the row/column limits on sprite visibility
     const cx = this.xForColumn(this.centerColumn);
     const cy = this.yForRow(this.centerRow);
@@ -163,7 +167,7 @@ export class Board {
       row = this._grid[r];
       for (c = cMinGrid; c < cMaxGrid; c++) {
         part = row[c];
-        if (part && !this.outputRegister.replaces(part)) visible.add(part);
+        if (part && !this.outputRegister.replaces(part) && !this.supplyGuide.replaces(part)) visible.add(part);
       }
     }
     // add balls
@@ -552,6 +556,7 @@ export class Board {
       this._connectSlopes();
       this._connectTurnstiles();
       this._connectGears();
+      if(this.supplyGuide)this.supplyGuide.sync();
       // average gear rotations in connected sets
       for (const row of this._grid) {
         for (const part of row) {
@@ -744,6 +749,7 @@ export class Board {
   // remove balls from the board
   public clearBalls():void {
     if (this.outputRegister) this.outputRegister.clear();
+    if (this.supplyGuide) this.supplyGuide.clear();
     for (const ball of this.balls) this.removeBall(ball);
   }
 
@@ -941,6 +947,7 @@ export class Board {
   // remove a ball from the board
   public removeBall(ball:Ball) {
     if (this.outputRegister) this.outputRegister.remove(ball);
+    if (this.supplyGuide) this.supplyGuide.remove(ball);
     if (this.balls.has(ball)) {
       if (ball.drop) ball.drop.balls.delete(ball);
       this.balls.delete(ball);
@@ -953,6 +960,11 @@ export class Board {
 
   // add a ball to the given drop without returning all balls to it
   public addBallToDrop(drop:Drop):void {
+    if(this.supplyGuide.includes(drop)){
+      const ball=this.partFactory.make(PartType.BALL) as Ball;
+      ball.drop=drop;ball.hue=drop.hue;drop.balls.add(ball);
+      this.addBall(ball,drop.column,drop.row);this.supplyGuide.sync();return;
+    }
     // get the highest ball associated with the drop
     let topBall:Ball;
     for (const ball of drop.balls) {
@@ -970,6 +982,7 @@ export class Board {
       r = topBall.row - (2 * radius);
     }
     this.addBall(this.partFactory.make(PartType.BALL) as Ball, c, Math.max(-0.5, r));
+    this.supplyGuide.sync();
   }
 
   // fill the drop with the given number of balls, adjusting its total count
@@ -1037,11 +1050,13 @@ export class Board {
                    spot.c, spot.r);
     }
     this.bulkUpdate = oldBulkUpdate;
+    this.supplyGuide.sync();
   }
 
   // return all balls to their appropriate drops
   public returnBalls():void {
     this.outputRegister.clear();
+    this.supplyGuide.clear();
     for (const drop of this.drops) {
       for (const lever of drop.turnstiles) lever.resetWithoutRelease();
       this.setDropBallCount(drop);
@@ -1108,8 +1123,10 @@ export class Board {
 
   // The classroom Add marbles tool only targets supply holding areas.
   public marbleSupplyAt(c:number, r:number):Drop {
+    const guided=this.supplyGuide.supplyAt(c,r);
+    if(guided)return guided;
     const drop = this.catchmentDrop(c, r);
-    return (drop && r <= drop.row + 0.5) ? drop : null;
+    return (drop && !this.supplyGuide.includes(drop) && r <= drop.row + 0.5) ? drop : null;
   }
 
   // return the drop that's closest to the given location
@@ -1400,7 +1417,7 @@ export class Board {
       this.view.cursor = 'grabbing';
     }
     if ((this._action === ActionType.DROP_BALL) && 
-        (this._actionPart instanceof Drop)) {
+        (this._actionPart instanceof Drop) && !this.supplyGuide.includes(this._actionPart)) {
       this._colorWheel.x = this._actionPart.x;
       this._colorWheel.y = this._actionPart.y;
       this._colorWheel.hue = this._actionPart.hue;
@@ -1559,7 +1576,9 @@ export class Board {
     const oldActionPart = this._actionPart;
     this._actionPart = this.getPart(column, row);
     let ball:Ball;
-    if (this._controlKeyDown) {
+    const releaser=this.supplyGuide.buttonAt(c,r);
+    if(releaser){this._action=ActionType.DROP_BALL;this._actionPart=releaser;cursor='pointer';}
+    else if (this._controlKeyDown) {
       this._action = ActionType.PAN;
       cursor = 'all-scroll';
     }
@@ -1575,8 +1594,8 @@ export class Board {
       this._action = ActionType.CLEAR_PART;
       cursor = 'pointer';
     }
-    else if ((this.tool == ToolType.HAND) && 
-             (this._actionPart instanceof Drop) &&
+    else if ((this.tool == ToolType.HAND) &&
+             (this._actionPart instanceof Drop) && !this.supplyGuide.includes(this._actionPart) &&
              (Math.abs(this._actionX - this._actionPart.x) <= this.controlSize / 2) &&
              (Math.abs(this._actionY - this._actionPart.y) <= this.controlSize / 2)) {
       this._action = ActionType.DROP_BALL;
@@ -1637,7 +1656,7 @@ export class Board {
     // respond to the part under the cursor changing
     if (this._actionPart !== oldActionPart) {
       // show/hide drop controls
-      if ((this._actionPart instanceof Drop) && 
+      if ((this._actionPart instanceof Drop) && !this.supplyGuide.includes(this._actionPart) &&
           (this.tool == ToolType.HAND)) {
         this._dropButton.x = this._actionPart.x;
         this._dropButton.y = this._actionPart.y;
