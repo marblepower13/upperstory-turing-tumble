@@ -61,7 +61,7 @@ New shared helper: src/board/rail.ts. Source, compiled hosting bundle and curren
 release notes are included in the update.
 
 Compiled docs/app.js SHA-256:
-ac084d0cf49a748e95c33f9ea515f9495d37f823dd0ad171d9a96429d926ae85
+b63789a4388a10e6ecae5be1fcec2d800897ebe752f497865ce16601ff9a0ac4
 
 ## Live checks after upload
 
@@ -80,3 +80,6 @@ No code has been pushed or published on your behalf.
 
 
 Challenge update validation: the physics and geometry source files are unchanged. The linked release, matched rail pace, and 88 forty-marble pattern cases were rerun against the newly compiled bundle and passed. Solved Gravity and Tetrad setups also passed at 0.25x, 1x, and 8x in both physical and schematic modes. See CHALLENGES_UPDATE.md for the complete challenge test scope and browser-validation limitation.
+
+
+Bottom-center clearance refinement: the center block now ends below the component envelope of the lowest center peg. Artwork and collider outlines match. Passed 306 physical and 68 schematic center approaches, 144 solid-inlet cases, 3,610 component-body poses, a controlled forty-marble full-supply run, center-path feedback/retention, and the complete challenge test suite. Ramp and inlet rolling-speed settings are unchanged. Details and scope are in CHALLENGES_UPDATE.md.

@@ -65,4 +65,27 @@ node tests/challenges/verify.cjs
 
 This uses the hosted `docs/matter.min.js` and Node's standard library, with test-only graphics stubs; no added runtime dependency is required.
 
-Compiled `docs/app.js` SHA-256: `ac084d0cf49a748e95c33f9ea515f9495d37f823dd0ad171d9a96429d926ae85`
+Compiled `docs/app.js` SHA-256: `b63789a4388a10e6ecae5be1fcec2d800897ebe752f497865ce16601ff9a0ac4`
+
+
+## Bottom-center peg clearance refinement
+
+The center divider's cap has been shortened so it stays below the complete moving-component area of the lowest center peg. The widened section beside the resting lever noses remains in place. Drawing, physical collision geometry, and schematic guidance use the same revised outline; no invisible high cap is left behind. Saved boards acquire the refinement automatically after the updated bundle loads.
+
+Validation for this refinement:
+
+- Actual atlas artwork was checked at 181 positions per orientation for all six standard component types, including physical and schematic layers. No occupied artwork overlaps the divider; the smallest vertical artwork gap is about 12 canonical model units before the divider's outline stroke.
+- 3,610 physical component-body poses clear the divider. Plain gears have no asymmetric collision body and are covered by the artwork check.
+- 306 physical and 68 schematic center-approach cases pass: one lever actuation, no sticking, and collection-tray settling. Fully pressed tip-to-block clearance is 23.21 model units, greater than the 20-unit marble diameter.
+- 144 inlet cases pass: incoming marbles contact the white slopes, roll to a lever, actuate once, and collect.
+- All 30 challenge setup/inventory/metadata checks, all 30 PNG pixel/metadata round trips, and twelve solved Gravity/Tetrad runs at slow/normal/fast speeds in both routing modes pass.
+- A controlled full-supply run retains and settles all forty marbles. A simultaneous center-path run also retains every released marble and actuates once per marble. Center-peg ricochets may send a marble to either lever; if that supply is empty, the chain correctly stops with the other supply's remaining marbles still held at the top.
+- Challenge control/menu/instructions DOM integration checks still pass. A native-artwork rendering of the ramp at rest, halfway through motion, and fully rotated was visually inspected.
+
+The repeatable physical-envelope check is:
+
+```
+node tests/challenges/verify-center-peg.cjs
+```
+
+After uploading, hard-refresh the simulator and check a Ramp on the bottom-center peg in both orientations while stationary and running. It should remain fully visible above the shorter block.

@@ -309,3 +309,8 @@ Retain the repository's LICENSE and third-party license notices.
 ## First 30 puzzle-book challenges (6 November 2026)
 
 Added native challenge definitions, limited part inventories, protected starting parts with Bit/Gear Bit state changes, objectives and required-output instructions, challenge restart/free-build controls, prescribed manual start sides, variable counting supplies, and challenge-aware PNG/URL metadata. See CHALLENGES_UPDATE.md for installation, scope, book-data corrections, and validation. Existing physics and board geometry source files are unchanged.
+
+
+## Bottom-center component clearance
+
+Shortened the center-divider cap while retaining its width beside the lever noses. Visible artwork, rigid-body collider, and schematic guidance share the revised outline. The bottom-center peg's component artwork clears the divider throughout its motion. See CHALLENGES_UPDATE.md for verification and the repeatable envelope check.

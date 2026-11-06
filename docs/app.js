@@ -2177,9 +2177,9 @@ System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/c
     var __moduleName = context_23 && context_23.id;
     // Match schematic deflection to the same widened cap and tapered stem.
     function centerBlockHalfWidth(rowOffset) {
-        const r = Math.max(-0.70, Math.min(0.45, rowOffset));
-        if (r < -0.50)
-            return 0.415 * (r + 0.70) / 0.20;
+        const r = Math.max(CENTER_BLOCK_TOP, Math.min(0.45, rowOffset));
+        if (r < CENTER_BLOCK_SHOULDER)
+            return 0.415 * (r - CENTER_BLOCK_TOP) / (CENTER_BLOCK_SHOULDER - CENTER_BLOCK_TOP);
         if (r <= -0.10)
             return 0.415;
         if (r <= 0.15)
@@ -2247,7 +2247,7 @@ System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/c
             { x: b.x, y: b.y + t }, { x: a.x, y: a.y + t }];
     }
     exports_23("inletCollider", inletCollider);
-    var fence_3, turnstile_3, constants_3, CENTER_BLOCK_VERTICES, CENTER_BLOCK_COLLIDERS;
+    var fence_3, turnstile_3, constants_3, CENTER_BLOCK_TOP, CENTER_BLOCK_SHOULDER, CENTER_BLOCK_VERTICES, CENTER_BLOCK_COLLIDERS;
     return {
         setters: [
             function (fence_3_1) {
@@ -2263,16 +2263,20 @@ System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/c
         execute: function () {
             // Shared by the drawing, rigid-body collider and schematic routing. No feet
             // extend into either lever's sweep or the falling-marble exit path.
+            // Keep the cap below the complete moving-artwork envelope of the bottom peg.
+            // The wide shoulder remains beside the resting lever noses to close that gap.
+            exports_23("CENTER_BLOCK_TOP", CENTER_BLOCK_TOP = -0.20);
+            exports_23("CENTER_BLOCK_SHOULDER", CENTER_BLOCK_SHOULDER = -0.16);
             exports_23("CENTER_BLOCK_VERTICES", CENTER_BLOCK_VERTICES = [
-                { x: 0, y: -0.70 * constants_3.SPACING },
-                { x: 0.415 * constants_3.SPACING, y: -0.50 * constants_3.SPACING },
+                { x: 0, y: CENTER_BLOCK_TOP * constants_3.SPACING },
+                { x: 0.415 * constants_3.SPACING, y: CENTER_BLOCK_SHOULDER * constants_3.SPACING },
                 { x: 0.415 * constants_3.SPACING, y: -0.10 * constants_3.SPACING },
                 { x: 0.10 * constants_3.SPACING, y: 0.15 * constants_3.SPACING },
                 { x: 0.08 * constants_3.SPACING, y: 0.45 * constants_3.SPACING },
                 { x: -0.08 * constants_3.SPACING, y: 0.45 * constants_3.SPACING },
                 { x: -0.10 * constants_3.SPACING, y: 0.15 * constants_3.SPACING },
                 { x: -0.415 * constants_3.SPACING, y: -0.10 * constants_3.SPACING },
-                { x: -0.415 * constants_3.SPACING, y: -0.50 * constants_3.SPACING }
+                { x: -0.415 * constants_3.SPACING, y: CENTER_BLOCK_SHOULDER * constants_3.SPACING }
             ]);
             // Convex pieces exactly cover the widened cap and tapered stem. Passing a
             // concave outline directly to Matter's SAT would incorrectly obstruct the exit.
@@ -3011,7 +3015,7 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                     for (const block of centerblock_2.centerBlocks(this.board)) {
                         const dc = ball.column - block.column, dr = ball.row - block.row;
                         const width = centerblock_2.centerBlockHalfWidth(dr);
-                        if (Math.abs(dc) < width + RAD && dr + RAD >= -0.70 && dr <= 0.45 + RAD) {
+                        if (Math.abs(dc) < width + RAD && dr + RAD >= centerblock_2.CENTER_BLOCK_TOP && dr <= 0.45 + RAD) {
                             const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
                             let approach = this._postApproaches.get(ball);
                             if (!approach || approach.column !== block.column || approach.row !== block.row) {
@@ -3020,7 +3024,7 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                                 this._postApproaches.set(ball, approach);
                             }
                             const sign = approach.sign;
-                            this.approachTarget(ball, block.column + sign * (0.415 + RAD + 0.025), dr < -0.50 ? block.row - 0.50 - RAD : ball.row);
+                            this.approachTarget(ball, block.column + sign * (0.415 + RAD + 0.025), dr < centerblock_2.CENTER_BLOCK_SHOULDER ? block.row + centerblock_2.CENTER_BLOCK_SHOULDER - RAD : ball.row);
                             return (true);
                         }
                     }
@@ -5115,8 +5119,8 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                             .reduce((a, p) => a.concat(p), []));
                         g.endFill();
                         g.lineStyle(Math.max(0.5, scale), 0xffffff, 1);
-                        g.moveTo(x, y - 0.66 * this.spacing);
-                        g.lineTo(x - 0.36 * this.spacing, y - 0.49 * this.spacing);
+                        g.moveTo(x, y + (centerblock_4.CENTER_BLOCK_TOP + 0.02) * this.spacing);
+                        g.lineTo(x - 0.36 * this.spacing, y + (centerblock_4.CENTER_BLOCK_SHOULDER + 0.01) * this.spacing);
                         g.lineTo(x - 0.36 * this.spacing, y - 0.13 * this.spacing);
                         g.lineTo(x - 0.06 * this.spacing, y + 0.15 * this.spacing);
                         g.lineTo(x - 0.04 * this.spacing, y + 0.40 * this.spacing);

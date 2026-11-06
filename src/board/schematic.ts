@@ -9,7 +9,7 @@ import { PART_SIZE, BALL_RADIUS, SPACING } from './constants';
 import { Slope, Side } from 'parts/fence';
 import { GearBase } from 'parts/gearbit';
 import { Turnstile, LEVER_REST_ANGLE, LEVER_PIVOT_OFFSET, LEVER_TIP } from 'parts/turnstile';
-import { centerBlocks, centerBlockHalfWidth, LeverInlet, leverInlets } from './centerblock';
+import { centerBlocks, centerBlockHalfWidth, CENTER_BLOCK_TOP, CENTER_BLOCK_SHOULDER, LeverInlet, leverInlets } from './centerblock';
 
 import { RAIL_ROLL_SPEED, railFrame, railPoint } from './rail';
 
@@ -123,7 +123,7 @@ export class SchematicBallRouter implements IBallRouter {
     for (const block of centerBlocks(this.board)) {
       const dc = ball.column - block.column, dr = ball.row - block.row;
       const width=centerBlockHalfWidth(dr);
-      if (Math.abs(dc) < width + RAD && dr + RAD >= -0.70 && dr <= 0.45 + RAD) {
+      if (Math.abs(dc) < width + RAD && dr + RAD >= CENTER_BLOCK_TOP && dr <= 0.45 + RAD) {
         const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
         let approach=this._postApproaches.get(ball);
         if(!approach||approach.column!==block.column||approach.row!==block.row){
@@ -133,7 +133,7 @@ export class SchematicBallRouter implements IBallRouter {
         }
         const sign=approach.sign;
         this.approachTarget(ball, block.column + sign * (0.415 + RAD + 0.025),
-          dr < -0.50 ? block.row - 0.50 - RAD : ball.row);
+          dr < CENTER_BLOCK_SHOULDER ? block.row + CENTER_BLOCK_SHOULDER - RAD : ball.row);
         return(true);
       }
     }

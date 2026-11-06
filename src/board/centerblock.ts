@@ -7,22 +7,26 @@ import { SPACING } from './constants';
 export type CenterBlock = { column:number, row:number };
 // Shared by the drawing, rigid-body collider and schematic routing. No feet
 // extend into either lever's sweep or the falling-marble exit path.
+// Keep the cap below the complete moving-artwork envelope of the bottom peg.
+// The wide shoulder remains beside the resting lever noses to close that gap.
+export const CENTER_BLOCK_TOP:number = -0.20;
+export const CENTER_BLOCK_SHOULDER:number = -0.16;
 export const CENTER_BLOCK_VERTICES = [
-  {x: 0, y: -0.70 * SPACING},
-  {x: 0.415 * SPACING, y: -0.50 * SPACING},
+  {x: 0, y: CENTER_BLOCK_TOP * SPACING},
+  {x: 0.415 * SPACING, y: CENTER_BLOCK_SHOULDER * SPACING},
   {x: 0.415 * SPACING, y: -0.10 * SPACING},
   {x: 0.10 * SPACING, y: 0.15 * SPACING},
   {x: 0.08 * SPACING, y: 0.45 * SPACING},
   {x: -0.08 * SPACING, y: 0.45 * SPACING},
   {x: -0.10 * SPACING, y: 0.15 * SPACING},
   {x: -0.415 * SPACING, y: -0.10 * SPACING},
-  {x: -0.415 * SPACING, y: -0.50 * SPACING}
+  {x: -0.415 * SPACING, y: CENTER_BLOCK_SHOULDER * SPACING}
 ];
 
 // Match schematic deflection to the same widened cap and tapered stem.
 export function centerBlockHalfWidth(rowOffset:number):number {
-  const r=Math.max(-0.70,Math.min(0.45,rowOffset));
-  if(r< -0.50)return 0.415*(r+0.70)/0.20;
+  const r=Math.max(CENTER_BLOCK_TOP,Math.min(0.45,rowOffset));
+  if(r<CENTER_BLOCK_SHOULDER)return 0.415*(r-CENTER_BLOCK_TOP)/(CENTER_BLOCK_SHOULDER-CENTER_BLOCK_TOP);
   if(r<=-0.10)return 0.415;
   if(r<=0.15)return 0.415+(0.10-0.415)*(r+0.10)/0.25;
   return 0.10+(0.08-0.10)*(r-0.15)/0.30;
