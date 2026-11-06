@@ -131,7 +131,8 @@ export class SchematicBallRouter implements IBallRouter {
             (ball.drop&&ball.drop.isFlipped?1:-1)};
           this._postApproaches.set(ball,approach);
         }
-        const sign=approach.sign;
+        const pressed = ball.hasActuatedLever ? this._passedLevers.get(ball) : null;
+        const sign = pressed && pressed.row === block.row ? (pressed.isFlipped ? 1 : -1) : approach.sign;
         this.approachTarget(ball, block.column + sign * (0.415 + RAD + 0.025),
           dr < CENTER_BLOCK_SHOULDER ? block.row + CENTER_BLOCK_SHOULDER - RAD : ball.row);
         return(true);

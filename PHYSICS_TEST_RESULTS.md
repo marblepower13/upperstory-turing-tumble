@@ -61,7 +61,7 @@ New shared helper: src/board/rail.ts. Source, compiled hosting bundle and curren
 release notes are included in the update.
 
 Compiled docs/app.js SHA-256:
-b63789a4388a10e6ecae5be1fcec2d800897ebe752f497865ce16601ff9a0ac4
+d4f4699ef03915c4ae0c4b1b5d95eab9ddcfe6597a12b61f5ed7dd7b10c6ee42
 
 ## Live checks after upload
 
@@ -83,3 +83,6 @@ Challenge update validation: the physics and geometry source files are unchanged
 
 
 Bottom-center clearance refinement: the center block now ends below the component envelope of the lowest center peg. Artwork and collider outlines match. Passed 306 physical and 68 schematic center approaches, 144 solid-inlet cases, 3,610 component-body poses, a controlled forty-marble full-supply run, center-path feedback/retention, and the complete challenge test suite. Ramp and inlet rolling-speed settings are unchanged. Details and scope are in CHALLENGES_UPDATE.md.
+
+
+Pointed-divider routing correction: the old flat-cap regression crossed to the opposite side for four of eight Gravity marbles at each tested speed. The corrected physical and schematic runs contain 96 marbles on both sides at three speeds, with zero crossings after actuation and complete collection. Maximum clearance delay is 87 physical-step equivalents. The 306 physical/68 schematic center cases, 144 inlet cases, linked-releaser cases, controlled full forty-marble run, 3,610 body-clearance poses, and complete challenge suite also pass. The cap artwork, collider, and schematic profile match. Detailed scope is in CHALLENGES_UPDATE.md.

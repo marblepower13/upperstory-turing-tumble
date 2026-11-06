@@ -65,16 +65,16 @@ node tests/challenges/verify.cjs
 
 This uses the hosted `docs/matter.min.js` and Node's standard library, with test-only graphics stubs; no added runtime dependency is required.
 
-Compiled `docs/app.js` SHA-256: `b63789a4388a10e6ecae5be1fcec2d800897ebe752f497865ce16601ff9a0ac4`
+Compiled `docs/app.js` SHA-256: `d4f4699ef03915c4ae0c4b1b5d95eab9ddcfe6597a12b61f5ed7dd7b10c6ee42`
 
 
-## Bottom-center peg clearance refinement
+## Bottom-center peg clearance and lever exits
 
-The center divider's cap has been shortened so it stays below the complete moving-component area of the lowest center peg. The widened section beside the resting lever noses remains in place. Drawing, physical collision geometry, and schematic guidance use the same revised outline; no invisible high cap is left behind. Saved boards acquire the refinement automatically after the updated bundle loads.
+The center divider has a pointed, steeper roof that stays below the complete moving-component area of the lowest center peg. The widened section beside the resting lever noses remains in place. Drawing, physical collision geometry, and schematic guidance use the same revised outline; no invisible high cap is left behind. Saved boards acquire the refinement automatically after the updated bundle loads.
 
 Validation for this refinement:
 
-- Actual atlas artwork was checked at 181 positions per orientation for all six standard component types, including physical and schematic layers. No occupied artwork overlaps the divider; the smallest vertical artwork gap is about 12 canonical model units before the divider's outline stroke.
+- Actual atlas artwork was checked at 181 positions per orientation for all six standard component types, including physical and schematic layers. No occupied artwork overlaps the divider; the smallest vertical artwork gap is about 5 canonical model units before the divider's outline stroke.
 - 3,610 physical component-body poses clear the divider. Plain gears have no asymmetric collision body and are covered by the artwork check.
 - 306 physical and 68 schematic center-approach cases pass: one lever actuation, no sticking, and collection-tray settling. Fully pressed tip-to-block clearance is 23.21 model units, greater than the 20-unit marble diameter.
 - 144 inlet cases pass: incoming marbles contact the white slopes, roll to a lever, actuate once, and collect.
@@ -88,4 +88,27 @@ The repeatable physical-envelope check is:
 node tests/challenges/verify-center-peg.cjs
 ```
 
-After uploading, hard-refresh the simulator and check a Ramp on the bottom-center peg in both orientations while stationary and running. It should remain fully visible above the shorter block.
+After uploading, hard-refresh the simulator and check a Ramp on the bottom-center peg in both orientations while stationary and running. It should remain fully visible above the pointed block.
+
+
+## Gravity marble crossing correction
+
+The preceding flat-cap version allowed a marble that had already pressed one lever to climb across the divider and visit the other side before falling through. A regression test reproduced this for four of eight Gravity marbles at each of three playback speeds.
+
+The cap is now pointed and steeper, with its wide shoulders retained beside the resting lever noses. Physical collision handling remembers the lever actually actuated by each marble. If that marble then contacts the divider roof, its motion is resolved along the downward slope on that lever's side. This applies only at real divider contact: there is no hidden wall above the block, no position jump, no color-based routing, and no release triggered by the block. Schematic routing follows the same actuated side. Ramp and inlet rolling-speed settings are unchanged.
+
+Passed against the corrected bundle:
+
+- 96 Gravity and mirrored red-side marbles, at 0.25x, 1x, and 8x in physical and schematic modes. No marble crosses the center after actuation; all eight per run settle in the register. Maximum lever-clearance delay: 87 physical-step equivalents, compared with 245 in the flat-cap reproduction.
+- 306 physical plus 68 schematic center approaches, 144 solid-inlet cases, and the controlled forty-marble full-supply run.
+- Linked top/bottom release and single-actuation regression tests.
+- All 30 challenge setup/inventory/metadata checks, all 30 PNG pixel/metadata round trips, the twelve solved Gravity/Tetrad runs, and the challenge DOM/control checks.
+- The 3,610 moving-body clearance cases still pass. Rechecking all six standard components' atlas-artwork envelopes leaves about five canonical units of clearance at the most conservative top-edge comparison. Native ramp artwork was also visually reviewed at rest, halfway, and fully rotated.
+
+Run the new repeatable regression with:
+
+```
+node tests/challenges/verify-lever-exit.cjs
+```
+
+For the first live test, load Gravity, complete the same ramp path, and watch each marble after it presses the blue lever. It should drop through on that side without visiting the red lever. Marble color does not determine routing: the side is the lever the marble actually actuated.

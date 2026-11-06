@@ -9,8 +9,8 @@ export type CenterBlock = { column:number, row:number };
 // extend into either lever's sweep or the falling-marble exit path.
 // Keep the cap below the complete moving-artwork envelope of the bottom peg.
 // The wide shoulder remains beside the resting lever noses to close that gap.
-export const CENTER_BLOCK_TOP:number = -0.20;
-export const CENTER_BLOCK_SHOULDER:number = -0.16;
+export const CENTER_BLOCK_TOP:number = -0.30;
+export const CENTER_BLOCK_SHOULDER:number = -0.14;
 export const CENTER_BLOCK_VERTICES = [
   {x: 0, y: CENTER_BLOCK_TOP * SPACING},
   {x: 0.415 * SPACING, y: CENTER_BLOCK_SHOULDER * SPACING},

@@ -11,12 +11,12 @@ import { Colors, Alphas } from 'ui/config';
 import { Gearbit, GearBase } from 'parts/gearbit';
 import { PartBody, PartBodyFactory } from 'parts/partbody';
 
-import { SPACING, PART_CATEGORY, PART_MASK } from './constants';
+import { SPACING, BALL_RADIUS, PART_CATEGORY, PART_MASK } from './constants';
 import { Animator } from 'ui/animator';
 import { PartType } from 'parts/factory';
 import { Turnstile } from 'parts/turnstile';
 import { RAIL_ROLL_SPEED, railFrame } from './rail';
-import { centerBlocks, CENTER_BLOCK_COLLIDERS, LeverInlet, leverInlets, inletCollider, isLeverInletPart } from './centerblock';
+import { centerBlocks, CENTER_BLOCK_COLLIDERS, CENTER_BLOCK_TOP, CENTER_BLOCK_SHOULDER, LeverInlet, leverInlets, inletCollider, isLeverInletPart } from './centerblock';
 
 export type PartBallContact = {
   ballPartBody: PartBody,
@@ -97,6 +97,7 @@ export class PhysicalBallRouter implements IBallRouter {
   private _inletBodies:Body[] = [];
   private _inletRails:Map<Body,LeverInlet> = new Map();
   private _centerBlockSignature:string = '';
+  private _actuatedLevers:WeakMap<Ball,Turnstile> = new WeakMap();
   private _syncCenterBlocks():boolean {
     const blocks = centerBlocks(this.board);
     const inlets=leverInlets(this.board);
@@ -136,11 +137,26 @@ export class PhysicalBallRouter implements IBallRouter {
       const partBody = this._findPartBody(block === a ? pair.bodyB : pair.bodyA);
       if (!partBody || !(partBody.part instanceof Ball)) continue;
       const body = partBody.body, ball = partBody.part as Ball;
+      const lever = ball.hasActuatedLever ? this._actuatedLevers.get(ball) : null;
+      const cx = (block.bounds.min.x + block.bounds.max.x) / 2;
+      if (lever && Math.abs(lever.row * SPACING - block.position.y) < SPACING &&
+          body.position.y <= lever.row * SPACING + CENTER_BLOCK_SHOULDER * SPACING + BALL_RADIUS) {
+        // Once a blade has been pressed, a real contact with the divider's
+        // roof must carry the marble down that same side, never uphill across
+        // the ridge to the other blade. Apply only the downhill tangent at an
+        // actual collision; free flight and the component area are untouched.
+        const sign = lever.isFlipped ? 1 : -1;
+        const slope = (CENTER_BLOCK_SHOULDER - CENTER_BLOCK_TOP) / 0.415;
+        const length = Math.sqrt(1 + slope * slope);
+        const tx = sign / length, ty = slope / length;
+        const speed = Math.max(0.8, body.velocity.x * tx + body.velocity.y * ty);
+        Body.setVelocity(body, {x: tx * speed, y: ty * speed});
+        continue;
+      }
       if (body.position.y > block.bounds.min.y + 0.55 * SPACING ||
           Math.abs(body.velocity.x) > 0.4) continue;
       // Resolve the perfectly balanced peak using the approach side. This
       // applies only on actual divider contact and never releases a marble.
-      const cx = (block.bounds.min.x + block.bounds.max.x) / 2;
       const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
       let sign = from * SPACING < cx ? -1 : from * SPACING > cx ? 1 :
         (ball.drop && ball.drop.isFlipped ? 1 : -1);
@@ -202,7 +218,10 @@ export class PhysicalBallRouter implements IBallRouter {
       const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
       levers.sort((a, b) => Math.abs(from - a.column) - Math.abs(from - b.column));
       // A brief strike starts one complete rigid stroke, not an early return.
-      if(levers[0].registerPass(ball))levers[0].pulse(this.board.speed,false,ball);
+      if(levers[0].registerPass(ball)) {
+        this._actuatedLevers.set(ball, levers[0]);
+        levers[0].pulse(this.board.speed,false,ball);
+      }
     }
     // combine the velocities of connected gear trains
     this.connectGears(contacts);

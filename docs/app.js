@@ -2265,8 +2265,8 @@ System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/c
             // extend into either lever's sweep or the falling-marble exit path.
             // Keep the cap below the complete moving-artwork envelope of the bottom peg.
             // The wide shoulder remains beside the resting lever noses to close that gap.
-            exports_23("CENTER_BLOCK_TOP", CENTER_BLOCK_TOP = -0.20);
-            exports_23("CENTER_BLOCK_SHOULDER", CENTER_BLOCK_SHOULDER = -0.16);
+            exports_23("CENTER_BLOCK_TOP", CENTER_BLOCK_TOP = -0.30);
+            exports_23("CENTER_BLOCK_SHOULDER", CENTER_BLOCK_SHOULDER = -0.14);
             exports_23("CENTER_BLOCK_VERTICES", CENTER_BLOCK_VERTICES = [
                 { x: 0, y: CENTER_BLOCK_TOP * constants_3.SPACING },
                 { x: 0.415 * constants_3.SPACING, y: CENTER_BLOCK_SHOULDER * constants_3.SPACING },
@@ -2338,6 +2338,7 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                     this._inletBodies = [];
                     this._inletRails = new Map();
                     this._centerBlockSignature = '';
+                    this._actuatedLevers = new WeakMap();
                     this._wallWidth = 16;
                     this._wallHeight = 16;
                     this._wallThickness = 16;
@@ -2446,12 +2447,27 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                         if (!partBody || !(partBody.part instanceof ball_4.Ball))
                             continue;
                         const body = partBody.body, ball = partBody.part;
+                        const lever = ball.hasActuatedLever ? this._actuatedLevers.get(ball) : null;
+                        const cx = (block.bounds.min.x + block.bounds.max.x) / 2;
+                        if (lever && Math.abs(lever.row * constants_4.SPACING - block.position.y) < constants_4.SPACING &&
+                            body.position.y <= lever.row * constants_4.SPACING + centerblock_1.CENTER_BLOCK_SHOULDER * constants_4.SPACING + constants_4.BALL_RADIUS) {
+                            // Once a blade has been pressed, a real contact with the divider's
+                            // roof must carry the marble down that same side, never uphill across
+                            // the ridge to the other blade. Apply only the downhill tangent at an
+                            // actual collision; free flight and the component area are untouched.
+                            const sign = lever.isFlipped ? 1 : -1;
+                            const slope = (centerblock_1.CENTER_BLOCK_SHOULDER - centerblock_1.CENTER_BLOCK_TOP) / 0.415;
+                            const length = Math.sqrt(1 + slope * slope);
+                            const tx = sign / length, ty = slope / length;
+                            const speed = Math.max(0.8, body.velocity.x * tx + body.velocity.y * ty);
+                            matter_js_2.Body.setVelocity(body, { x: tx * speed, y: ty * speed });
+                            continue;
+                        }
                         if (body.position.y > block.bounds.min.y + 0.55 * constants_4.SPACING ||
                             Math.abs(body.velocity.x) > 0.4)
                             continue;
                         // Resolve the perfectly balanced peak using the approach side. This
                         // applies only on actual divider contact and never releases a marble.
-                        const cx = (block.bounds.min.x + block.bounds.max.x) / 2;
                         const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
                         let sign = from * constants_4.SPACING < cx ? -1 : from * constants_4.SPACING > cx ? 1 :
                             (ball.drop && ball.drop.isFlipped ? 1 : -1);
@@ -2516,8 +2532,10 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                         const from = isNaN(ball.lastDistinctColumn) ? ball.column : ball.lastDistinctColumn;
                         levers.sort((a, b) => Math.abs(from - a.column) - Math.abs(from - b.column));
                         // A brief strike starts one complete rigid stroke, not an early return.
-                        if (levers[0].registerPass(ball))
+                        if (levers[0].registerPass(ball)) {
+                            this._actuatedLevers.set(ball, levers[0]);
                             levers[0].pulse(this.board.speed, false, ball);
+                        }
                     }
                     // combine the velocities of connected gear trains
                     this.connectGears(contacts);
@@ -3023,7 +3041,8 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                                         (ball.drop && ball.drop.isFlipped ? 1 : -1) };
                                 this._postApproaches.set(ball, approach);
                             }
-                            const sign = approach.sign;
+                            const pressed = ball.hasActuatedLever ? this._passedLevers.get(ball) : null;
+                            const sign = pressed && pressed.row === block.row ? (pressed.isFlipped ? 1 : -1) : approach.sign;
                             this.approachTarget(ball, block.column + sign * (0.415 + RAD + 0.025), dr < centerblock_2.CENTER_BLOCK_SHOULDER ? block.row + centerblock_2.CENTER_BLOCK_SHOULDER - RAD : ball.row);
                             return (true);
                         }

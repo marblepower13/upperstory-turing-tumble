@@ -13,6 +13,6 @@ for(const type of [3,4,5,6,7,8])for(const flipped of [false,true]){
  }
 }
 // The cap still reaches the resting noses; it does not leave a marble-width gap.
-for(const r of [-.15,-.14,-.10])assert.equal(C.centerBlockHalfWidth(r),.415);
+for(const r of [-.14,-.12,-.10])assert.equal(C.centerBlockHalfWidth(r),.415);
 assert.equal(C.centerBlockHalfWidth(C.CENTER_BLOCK_TOP),0);
 console.log('PASS:',poses,'component-body poses clear the divider; minimum',minimum.toFixed(2),'model units. Wide shoulder retained beside the resting lever noses.');

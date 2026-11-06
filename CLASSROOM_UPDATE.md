@@ -314,3 +314,8 @@ Added native challenge definitions, limited part inventories, protected starting
 ## Bottom-center component clearance
 
 Shortened the center-divider cap while retaining its width beside the lever noses. Visible artwork, rigid-body collider, and schematic guidance share the revised outline. The bottom-center peg's component artwork clears the divider throughout its motion. See CHALLENGES_UPDATE.md for verification and the repeatable envelope check.
+
+
+## Pointed-divider lever-exit correction
+
+Replaced the flat divider roof with a steeper point while keeping the bottom-center peg clear. At verified roof contact after lever actuation, physical and schematic routing retain the actuated side and guide the marble downhill through that exit. Added a regression reproducing the reported Gravity crossover and validating both colors/sides at slow, normal, and fast speeds. See CHALLENGES_UPDATE.md for the complete scope.
