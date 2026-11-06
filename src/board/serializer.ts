@@ -3,6 +3,7 @@ import { Delays } from 'ui/config';
 import { Part } from 'parts/part';
 import { PartType } from 'parts/factory';
 import { Drop } from 'parts/drop';
+import { Challenges } from './challenges';
 
 export interface IBoardSerializer {
   onBoardStateChanged():void;
@@ -164,9 +165,11 @@ export class URLBoardSerializer implements IBoardSerializer {
     for (const drop of this._getSortedDrops()) {
       items.push('d '+drop.hue+' '+drop.balls.size);
     }
+    if (this.board.challengeId) items.push('c '+this.board.challengeId);
     return(items.join(' '));
   }
   protected _readMetadata(s:string) {
+    this.board.clearChallenge();
     const drops = this._getSortedDrops();
     // tokenize the string
     const tokens:string[]= s.split(' ');
@@ -188,6 +191,7 @@ export class URLBoardSerializer implements IBoardSerializer {
           this.board.setDropBallCount(drop, Math.floor(params[1]));
         }
       }
+      if ((type === 'c') && (params.length === 1)) Challenges.restoreSession(this.board, params[0]);
     }
   }
   protected _getSortedDrops():Drop[] {
@@ -252,6 +256,8 @@ export class URLBoardSerializer implements IBoardSerializer {
       let s:string, metadata:string = '';
       // read parts and metadata from the image's pixels
       this.board.bulkUpdate = true;
+      this.board.cancelInteraction();
+      this.board.clearChallenge();
       this.board.setSize(w, 0, false);
       let r = 0;
       for (let y:number = 0; y < h; y++) {

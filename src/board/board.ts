@@ -57,6 +57,7 @@ export class Board {
     this._layers.addChildAt(this.outputRegister.view, 0);
     this._layers.addChildAt(this.supplyGuide.view, 0);
     this._layers.addChild(this._centerBlockView);
+    this._layers.addChild(this._challengeLabelView);
     this._bindKeyEvents();
   }
   public readonly view:PIXI.Sprite = new PIXI.Sprite();
@@ -64,6 +65,66 @@ export class Board {
 
   // a serializer for the board state
   public serializer:IBoardSerializer = null;
+
+  public challengeId:number = 0;
+  public challengeStart:string = 'either';
+  public challengeLimits:{[type:number]:number} = null;
+  public readonly challengeFixedParts:Set<Part> = new Set();
+  public challengeLabels:{column:number,row:number,text:string}[] = [];
+  private _challengeLabelView:PIXI.Container = new PIXI.Container();
+
+  public clearChallenge():void {
+    for (const part of this.challengeFixedParts) part.alpha = 1;
+    this.challengeId = 0;
+    this.challengeStart = 'either';
+    this.challengeLimits = null;
+    this.challengeFixedParts.clear();
+    this.challengeLabels = [];
+    this.onChange();
+  }
+
+  public remainingParts(type:PartType):number {
+    if (!this.challengeLimits) return Infinity;
+    const limit = this.challengeLimits[type];
+    if (limit === undefined) return 0;
+    if (limit < 0) return Infinity;
+    let used = 0;
+    for (const row of this._grid) for (const part of row)
+      if (part && part.type === type && !this.challengeFixedParts.has(part)) used++;
+    return Math.max(0, limit - used);
+  }
+
+  public canStartDrop(drop:Drop):boolean {
+    return !this.challengeId || this.challengeStart === 'either' ||
+      this.challengeStart === (drop.isFlipped ? 'right' : 'left');
+  }
+
+  public cancelInteraction():void {
+    this.partPrototype = null;
+    this._dragging = false;
+    this._isMouseDown = false;
+    this._action = ActionType.PAN;
+    this._actionPart = null;
+    this._dragFlippedParts.clear();
+  }
+
+  private _drawChallengeLabels():void {
+    while (this._challengeLabelView.children.length > this.challengeLabels.length) {
+      const child = this._challengeLabelView.children[this._challengeLabelView.children.length - 1];
+      this._challengeLabelView.removeChild(child);
+      child.destroy();
+    }
+    this.challengeLabels.forEach((item, index) => {
+      let label = this._challengeLabelView.children[index] as PIXI.Text;
+      if (!label) {
+        label = new PIXI.Text('', {fontFamily:'Arial', fontWeight:'bold', fill:0x116b78});
+        this._challengeLabelView.addChild(label);
+      }
+      label.text = item.text;
+      label.style.fontSize = Math.max(8, this.partSize * 0.2);
+      label.position.set(this.xForColumn(item.column), this.yForRow(item.row));
+    });
+  }
 
   // the set of balls currently on the board
   public readonly balls:Set<Ball> = new Set();
@@ -144,6 +205,7 @@ export class Board {
   // LAYERS *******************************************************************
 
   protected _updateSpriteVisibility():void {
+    this._drawChallengeLabels();
     this._drawCenterBlocks();
     this.outputRegister.draw();
     this.supplyGuide.draw();
@@ -765,6 +827,11 @@ export class Board {
 
   // whether a part can be placed at the given row and column
   public canPlacePart(type:PartType, column:number, row:number):boolean {
+    if (this.challengeId) {
+      if (type < PartType.RAMP || type > PartType.GEAR) return false;
+      const current = this.getPart(column, row);
+      if (this.remainingParts(type) <= 0 && (!current || current.type !== type)) return false;
+    }
     if (type == PartType.BALL) {
       return((row >= 0.0) && (column >= 0.0) &&
              (row < this.rowCount) && (column < this.columnCount));
@@ -782,7 +849,9 @@ export class Board {
   // whether the part at the given location can be flipped
   public canFlipPart(column:number, row:number):boolean {
     const part = this.getPart(column, row);
-    return((part) && (part.canFlip || part.canRotate) && (! part.isLocked));
+    return((part) && (part.canFlip || part.canRotate) &&
+      (!part.isLocked || (this.challengeFixedParts.has(part) &&
+        (part.type === PartType.BIT || part.type === PartType.GEARBIT))));
   }
 
   public allowBoardResize:boolean = false;
@@ -859,6 +928,11 @@ export class Board {
         (row < 0) || (row >= this._rowCount)) return;
     const oldPart = this.getPart(column, row);
     if (oldPart === newPart) return;
+    if (this.challengeId && !this.bulkUpdate) {
+      if (this.challengeFixedParts.has(oldPart)) return;
+      if (newPart && newPart.type >= PartType.RAMP &&
+          !this.canPlacePart(newPart.type, column, row)) return;
+    }
     this._grid[row][column] = newPart;
     if (newPart) this.layoutPart(newPart, column, row);
     // tell gears what kind of location they're on
@@ -970,6 +1044,7 @@ export class Board {
 
   // add a ball to the given drop without returning all balls to it
   public addBallToDrop(drop:Drop):void {
+    if (this.challengeId) return;
     if(this.supplyGuide.includes(drop)){
       const ball=this.partFactory.make(PartType.BALL) as Ball;
       ball.drop=drop;ball.hue=drop.hue;drop.balls.add(ball);
@@ -1479,7 +1554,7 @@ export class Board {
     }
     else if (this._action === ActionType.FLIP_PART) {
       const part = this.getPart(column, row);
-      if ((part) && (! part.isLocked) && 
+      if ((part) && (this.canFlipPart(column, row)) && 
           (! this._dragFlippedParts.has(part))) {
         this.flipPart(column, row);
         this._dragFlippedParts.add(part);
@@ -1597,10 +1672,11 @@ export class Board {
     this._actionPart = this.getPart(column, row);
     let ball:Ball;
     const startControl=this.startControlAt(c,r);
-    if(this.tool===ToolType.PART&&this.partPrototype&&this.partPrototype.type===PartType.BALL&&this.marbleSupplyAt(c,r)){
+    if(!this.challengeId&&this.tool===ToolType.PART&&this.partPrototype&&this.partPrototype.type===PartType.BALL&&this.marbleSupplyAt(c,r)){
       this._action=ActionType.PLACE_BALL;cursor='pointer';
     }
-    else if(startControl){this._action=startControl instanceof Turnstile?ActionType.TURN_TURNSTILE:ActionType.DROP_BALL;this._actionPart=startControl;cursor='pointer';}
+    else if(startControl && this.canStartDrop(startControl instanceof Turnstile ? startControl.drop : startControl as Drop)){this._action=startControl instanceof Turnstile?ActionType.TURN_TURNSTILE:ActionType.DROP_BALL;this._actionPart=startControl;cursor='pointer';}
+    else if(startControl){this._action=ActionType.PAN;this._actionPart=null;}
     else if (this._controlKeyDown) {
       this._action = ActionType.PAN;
       cursor = 'all-scroll';
@@ -1632,7 +1708,7 @@ export class Board {
       cursor = 'pointer';
     }
     else if ((this.tool == ToolType.HAND) && 
-             (ball = this.ballUnder(c, r))) {
+             (!this.challengeId) && (ball = this.ballUnder(c, r))) {
       this._action = ActionType.DRAG_PART;
       this._actionPart = ball;
       cursor = 'grab';

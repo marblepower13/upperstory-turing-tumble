@@ -4,6 +4,7 @@ import { SimulatorApp } from 'app';
 import { Renderer } from 'renderer';
 import { BoardBuilder } from 'board/builder';
 import { URLBoardSerializer } from 'board/serializer';
+import { Challenges } from 'board/challenges';
 
 // the simulator, which will be initialized once resources have loaded
 let sim:SimulatorApp;
@@ -52,7 +53,7 @@ loader.add('images/parts.json').load(() => {
     // attach the stage to the document and fade it in
     container.appendChild(Renderer.instance.view);
     container.style.opacity = '1';
-    window.dispatchEvent(new CustomEvent('simulator-ready', { detail: { sim, BoardBuilder } }));
+    window.dispatchEvent(new CustomEvent('simulator-ready', { detail: { sim, BoardBuilder, Challenges } }));
     // start the game loop
     PIXI.ticker.shared.add(sim.update, sim);
   });

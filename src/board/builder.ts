@@ -7,6 +7,8 @@ export class BoardBuilder {
 
   public static initStandardBoard(board:Board,
       redBlueDistance:number=5, verticalDrop:number=11):void {
+    board.cancelInteraction();
+    board.clearChallenge();
     let r:number, c:number, run:number;
     const width:number = (redBlueDistance * 2) + 3;
     const center:number = Math.floor(width / 2);

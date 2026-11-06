@@ -3314,14 +3314,272 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
         }
     };
 });
-System.register("board/serializer", ["parts/drop"], function (exports_26, context_26) {
+System.register("board/builder", ["parts/fence"], function (exports_26, context_26) {
     "use strict";
     var __moduleName = context_26 && context_26.id;
-    var drop_3, URLBoardSerializer;
+    var fence_5, BoardBuilder;
+    return {
+        setters: [
+            function (fence_5_1) {
+                fence_5 = fence_5_1;
+            }
+        ],
+        execute: function () {
+            BoardBuilder = class BoardBuilder {
+                static initStandardBoard(board, redBlueDistance = 5, verticalDrop = 11) {
+                    board.cancelInteraction();
+                    board.clearChallenge();
+                    let r, c, run;
+                    const width = (redBlueDistance * 2) + 3;
+                    const center = Math.floor(width / 2);
+                    const blueColumn = center - Math.floor(redBlueDistance / 2);
+                    const redColumn = center + Math.floor(redBlueDistance / 2);
+                    const dropLevel = (blueColumn % 2 == 0) ? 1 : 2;
+                    const collectLevel = dropLevel + verticalDrop;
+                    const steps = Math.ceil(center / fence_5.Slope.maxModulus);
+                    const maxModulus = Math.ceil(center / steps);
+                    const height = collectLevel + steps + 4;
+                    board.bulkUpdate = true;
+                    board.setSize(width, height, false);
+                    board.clear(true);
+                    // block out unreachable locations at the top
+                    const blank = board.partFactory.make(0 /* BLANK */);
+                    blank.isLocked = true;
+                    for (r = 0; r < height; r++) {
+                        for (c = 0; c < width; c++) {
+                            const blueCantReach = ((r + c) < (blueColumn + dropLevel)) ||
+                                ((c - r) > (blueColumn - dropLevel));
+                            const redCantReach = ((r + c) < (redColumn + dropLevel)) ||
+                                ((c - r) > (redColumn - dropLevel));
+                            if ((blueCantReach && redCantReach) || (r <= dropLevel)) {
+                                board.setPart(board.partFactory.copy(blank), c, r);
+                            }
+                        }
+                    }
+                    // add fences on the sides
+                    const side = board.partFactory.make(12 /* SIDE */);
+                    side.isLocked = true;
+                    const flippedSide = board.partFactory.copy(side);
+                    flippedSide.flip();
+                    for (r = dropLevel - 1; r < collectLevel; r++) {
+                        board.setPart(board.partFactory.copy(side), 0, r);
+                        board.setPart(board.partFactory.copy(flippedSide), width - 1, r);
+                    }
+                    // add collection slopes at the bottom
+                    const slope = board.partFactory.make(13 /* SLOPE */);
+                    slope.isLocked = true;
+                    const flippedSlope = board.partFactory.copy(slope);
+                    flippedSlope.flip();
+                    r = collectLevel;
+                    run = 0;
+                    for (c = 0; c < center - 1; c++, run++) {
+                        if (run >= maxModulus) {
+                            r++;
+                            run = 0;
+                        }
+                        board.setPart(board.partFactory.copy(slope), c, r);
+                    }
+                    r = collectLevel;
+                    run = 0;
+                    for (c = width - 1; c > center + 1; c--, run++) {
+                        if (run >= maxModulus) {
+                            r++;
+                            run = 0;
+                        }
+                        board.setPart(board.partFactory.copy(flippedSlope), c, r);
+                    }
+                    const turnstileLevel = r + 1;
+                    // add hoppers for extra balls
+                    board.setPart(board.partFactory.copy(slope), blueColumn - 2, dropLevel - 1);
+                    board.setPart(board.partFactory.copy(flippedSlope), blueColumn, dropLevel - 1);
+                    board.setPart(board.partFactory.copy(slope), redColumn, dropLevel - 1);
+                    board.setPart(board.partFactory.copy(flippedSlope), redColumn + 2, dropLevel - 1);
+                    // block out the unreachable locations at the bottom
+                    for (r = collectLevel; r < height; r++) {
+                        for (c = 0; c < width; c++) {
+                            const p = board.getPart(c, r);
+                            if ((p instanceof fence_5.Side) || (p instanceof fence_5.Slope))
+                                break;
+                            board.setPart(board.partFactory.copy(blank), c, r);
+                        }
+                        for (c = width - 1; c >= 0; c--) {
+                            const p = board.getPart(c, r);
+                            if ((p instanceof fence_5.Side) || (p instanceof fence_5.Slope))
+                                break;
+                            board.setPart(board.partFactory.copy(blank), c, r);
+                        }
+                    }
+                    // make a fence to collect balls
+                    const rightSide = center + fence_5.Slope.maxModulus;
+                    for (c = center; c < rightSide; c++) {
+                        board.setPart(board.partFactory.copy(slope), c, height - 1);
+                        board.setPart(board.partFactory.copy(flippedSlope), c, height - 3);
+                    }
+                    for (r = height - 3; r <= height - 1; r++) {
+                        board.setPart(board.partFactory.copy(side), rightSide, r);
+                    }
+                    board.setPart(board.partFactory.copy(slope), center - 1, height - 2);
+                    board.setPart(board.partFactory.copy(slope), center - 2, height - 3);
+                    // make ball drops
+                    const blueDrop = board.partFactory.make(10 /* DROP */);
+                    board.setPart(blueDrop, blueColumn - 1, dropLevel);
+                    blueDrop.hue = 220;
+                    blueDrop.isLocked = true;
+                    const redDrop = board.partFactory.make(10 /* DROP */);
+                    redDrop.isFlipped = true;
+                    board.setPart(redDrop, redColumn + 1, dropLevel);
+                    redDrop.hue = 0;
+                    redDrop.isLocked = true;
+                    // add balls
+                    board.setDropBallCount(blueDrop, 8);
+                    board.setDropBallCount(redDrop, 8);
+                    // make turnstiles
+                    const blueTurnstile = board.partFactory.make(11 /* TURNSTILE */);
+                    blueTurnstile.isLocked = true;
+                    board.setPart(blueTurnstile, center - 1, turnstileLevel);
+                    const redTurnstile = board.partFactory.make(11 /* TURNSTILE */);
+                    redTurnstile.isLocked = true;
+                    redTurnstile.isFlipped = true;
+                    board.setPart(redTurnstile, center + 1, turnstileLevel);
+                    board.bulkUpdate = false;
+                }
+            };
+            exports_26("BoardBuilder", BoardBuilder);
+        }
+    };
+});
+System.register("board/challenge-data", [], function (exports_27, context_27) {
+    "use strict";
+    var __moduleName = context_27 && context_27.id;
+    var CHALLENGES;
+    return {
+        setters: [],
+        execute: function () {
+            exports_27("CHALLENGES", CHALLENGES = [
+                { "id": 1, "name": "Gravity", "objective": "Make all of the blue marbles (and only the blue marbles) reach the end.", "page": 15, "start": "left", "supplies": [8, 8], "limits": { "3": 4, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 3, 1], [5, 3, 3, 0], [4, 4, 3, 1], [4, 6, 3, 1], [4, 8, 3, 1], [4, 10, 3, 1]], "output": "bbbbbbbb", "variableMax": 0, "labels": [] },
+                { "id": 2, "name": "Re-entry", "objective": "Make all of the blue marbles (and only the blue marbles) reach the end.", "page": 16, "start": "left", "supplies": [8, 8], "limits": { "3": 5, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 3, 1], [5, 3, 3, 1], [6, 4, 3, 1], [7, 5, 3, 1], [8, 6, 3, 1], [9, 7, 3, 1]], "output": "bbbbbbbb", "variableMax": 0, "labels": [] },
+                { "id": 3, "name": "Ignition", "objective": "Release one blue marble and then all of the red marbles.", "page": 17, "start": "left", "supplies": [8, 8], "limits": { "3": 6, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 3, 1], [8, 2, 3, 0], [10, 8, 3, 0], [9, 9, 3, 1], [10, 10, 3, 0], [9, 11, 3, 1]], "output": "brrrrrrrr", "variableMax": 0, "labels": [] },
+                { "id": 4, "name": "Fusion", "objective": "Release one red marble and then all of the blue marbles.", "page": 18, "start": "right", "supplies": [8, 8], "limits": { "3": 13, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 3, 0], [8, 2, 3, 1], [3, 3, 3, 0], [9, 3, 3, 1], [2, 4, 3, 0], [10, 4, 3, 1]], "output": "rbbbbbbbb", "variableMax": 0, "labels": [] },
+                { "id": 5, "name": "Entropy", "objective": "Make the pattern blue, red, blue, red, blue, red...", "page": 21, "start": "left", "supplies": [8, 8], "limits": { "3": 9, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 3, 1], [5, 3, 3, 1], [6, 4, 4, 0], [7, 5, 3, 1], [8, 6, 3, 0], [7, 7, 3, 1], [8, 8, 3, 0], [7, 9, 3, 1], [8, 10, 3, 0], [7, 11, 3, 1]], "output": "brbrbrbrbrbrbrbr", "variableMax": 0, "labels": [] },
+                { "id": 6, "name": "Total Internal Reflection", "objective": "Make the pattern blue, red, blue, red, blue, red...", "page": 22, "start": "left", "supplies": [8, 8], "limits": { "3": 2, "4": 5, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[5, 3, 3, 1], [7, 3, 3, 0], [5, 5, 3, 1], [7, 5, 3, 0], [5, 7, 3, 1], [7, 7, 3, 0], [5, 9, 3, 1], [7, 9, 3, 0], [5, 11, 3, 1], [7, 11, 3, 0]], "output": "brbrbrbrbrbrbrbr", "variableMax": 0, "labels": [] },
+                { "id": 7, "name": "Path of Least Resistance", "objective": "Create a path for the blue marbles to reach the output with only 6 ramps.", "page": 23, "start": "left", "supplies": [8, 8], "limits": { "3": 6, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 4, 4, 0], [6, 4, 4, 0], [2, 6, 4, 0], [5, 7, 4, 0], [3, 9, 4, 0], [4, 10, 4, 0]], "output": "bbbbbbbb", "variableMax": 0, "labels": [] },
+                { "id": 8, "name": "Depolarization", "objective": "Make the pattern blue, red, blue, red, blue, red...", "page": 26, "start": "left", "supplies": [8, 8], "limits": { "3": 14, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 3, 1], [8, 2, 3, 0], [5, 3, 3, 1], [7, 3, 3, 0], [6, 4, 6, 0]], "output": "brbrbrbrbrbrbrbr", "variableMax": 0, "labels": [] },
+                { "id": 9, "name": "Dimers", "objective": "Make the pattern blue, blue, red, blue, blue, red...", "page": 27, "start": "left", "supplies": [10, 10], "limits": { "3": 18, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 6, 0], [8, 2, 3, 0], [5, 3, 3, 1], [7, 3, 3, 0], [6, 4, 4, 0]], "output": "bbrbbrbbrbbrbbr", "variableMax": 0, "labels": [] },
+                { "id": 10, "name": "Double Bond", "objective": "Make the pattern blue, blue, red, red, blue, blue, red, red...", "page": 28, "start": "left", "supplies": [8, 8], "limits": { "3": 22, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 6, 0], [8, 2, 6, 1], [6, 4, 4, 0]], "output": "bbrrbbrrbbrrbbrr", "variableMax": 0, "labels": [] },
+                { "id": 11, "name": "Selectivity", "objective": "Flip bits 2 and 5 to the right.", "page": 29, "start": "left", "supplies": [2, 0], "limits": { "3": 15, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[6, 4, 6, 0], [2, 8, 6, 1], [4, 8, 6, 1], [6, 8, 6, 1], [8, 8, 6, 1], [10, 8, 6, 1]], "output": "", "variableMax": 0, "labels": [[2, 8, "1"], [4, 8, "2"], [6, 8, "3"], [8, 8, "4"], [10, 8, "5"]] },
+                { "id": 12, "name": "Duality - Part 1", "objective": "Intercept a blue marble.", "page": 32, "start": "left", "supplies": [8, 8], "limits": { "3": 3, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 3, 1], [5, 3, 3, 1], [6, 4, 6, 0], [8, 8, 3, 0], [7, 9, 3, 0], [6, 10, 5, 0]], "output": "", "variableMax": 0, "labels": [] },
+                { "id": 13, "name": "Duality - Part 2", "objective": "Intercept a red marble.", "page": 33, "start": "left", "supplies": [8, 8], "limits": { "3": 12, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 3, 1], [5, 3, 3, 1], [6, 4, 6, 0], [7, 5, 3, 1], [8, 6, 3, 1], [9, 7, 3, 0], [8, 8, 3, 0], [7, 9, 3, 0], [6, 10, 5, 0]], "output": "", "variableMax": 0, "labels": [] },
+                { "id": 14, "name": "Duality - Part 3", "objective": "If the machine starts with bit A pointing to the left, intercept a blue marble. Otherwise, intercept a red marble.", "page": 34, "start": "left", "supplies": [8, 8], "limits": { "3": 20, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[6, 4, 6, 0], [6, 10, 5, 0]], "output": "", "variableMax": 0, "labels": [[6, 4, "A"]] },
+                { "id": 15, "name": "Inversion", "objective": "If bit A starts to the left, intercept a blue marble. If bit A starts to the right, intercept \u0003 a red marble.", "page": 35, "start": "left", "supplies": [8, 8], "limits": { "3": 11, "4": 2, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 6, 0], [8, 2, 3, 0], [5, 3, 3, 1], [7, 3, 3, 0], [6, 4, 5, 0], [6, 10, 6, 0]], "output": "", "variableMax": 0, "labels": [[6, 10, "A"]] },
+                { "id": 16, "name": "Termination", "objective": "Let only 3 blue marbles reach the bottom and catch the 4th marble in the interceptor.", "page": 36, "start": "left", "supplies": [8, 8], "limits": { "3": 10, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 6, 1], [3, 3, 3, 1], [4, 4, 6, 1], [3, 5, 5, 0]], "output": "bbb", "variableMax": 0, "labels": [] },
+                { "id": 17, "name": "Fixed Ratio", "objective": "Make the pattern blue, blue, blue, red, red, red.", "page": 37, "start": "left", "supplies": [8, 8], "limits": { "3": -1, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 6, 1], [8, 2, 6, 1], [5, 3, 3, 0], [7, 3, 3, 1], [4, 4, 6, 0], [8, 4, 6, 1], [7, 5, 5, 0]], "output": "bbbrrr", "variableMax": 0, "labels": [] },
+                { "id": 18, "name": "Entanglement Part 1", "objective": "If the top bit AND the bottom bit start pointed to the right, put a marble in interceptor T. Otherwise put a marble in interceptor F.", "page": 38, "start": "left", "supplies": [8, 8], "limits": { "3": 7, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[6, 4, 6, 0], [6, 6, 6, 0], [4, 8, 5, 0], [8, 8, 5, 0]], "output": "", "variableMax": 0, "labels": [[6, 4, "A"], [6, 6, "B"], [4, 8, "T"], [8, 8, "F"]] },
+                { "id": 19, "name": "Entanglement Part 2", "objective": "If the top bit AND the bottom bit start pointed to the right, intercept a blue marble. Otherwise, intercept a red marble.", "page": 39, "start": "left", "supplies": [8, 8], "limits": { "3": -1, "4": 2, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[6, 4, 6, 0], [6, 6, 6, 0], [6, 12, 5, 0]], "output": "", "variableMax": 0, "labels": [[6, 4, "A"], [6, 6, "B"]] },
+                { "id": 20, "name": "Symbiosis", "objective": "If the top bit OR the bottom bit start pointed to the right, intercept a blue marble. Otherwise, intercept a red marble.", "page": 40, "start": "left", "supplies": [8, 8], "limits": { "3": -1, "4": 2, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[6, 4, 6, 0], [6, 6, 6, 0], [6, 12, 5, 0]], "output": "", "variableMax": 0, "labels": [[6, 4, "A"], [6, 6, "B"]] },
+                { "id": 21, "name": "Quantum Number", "objective": "Use register A to count the number of blue marbles. (Use 15 or fewer marbles).", "page": 43, "start": "left", "supplies": [8, 0], "limits": { "3": 5, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 6, 1], [3, 3, 3, 1], [5, 3, 3, 1], [4, 4, 6, 1], [3, 5, 3, 1], [5, 5, 3, 1], [4, 6, 6, 1], [3, 7, 3, 1], [5, 7, 3, 1], [4, 8, 6, 1], [3, 9, 3, 1], [5, 9, 3, 1], [4, 10, 3, 1], [5, 11, 3, 1]], "output": "", "variableMax": 15, "labels": [[6, 6, "A"], [4, 2, "1"], [4, 4, "2"], [4, 6, "4"], [4, 8, "8"]] },
+                { "id": 22, "name": "Depletion", "objective": "Register A starts at 15. Subtract the number of blue marbles from the register. (Use 15 or fewer marbles.)", "page": 44, "start": "left", "supplies": [8, 0], "limits": { "3": 5, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 6, 0], [3, 3, 3, 0], [5, 3, 3, 0], [4, 4, 6, 0], [3, 5, 3, 0], [5, 5, 3, 0], [4, 6, 6, 0], [3, 7, 3, 0], [5, 7, 3, 0], [4, 8, 6, 0], [3, 9, 3, 0], [5, 9, 3, 0], [4, 10, 3, 0], [3, 11, 3, 0]], "output": "", "variableMax": 15, "labels": [[6, 6, "A"], [4, 2, "1"], [4, 4, "2"], [4, 6, "4"], [4, 8, "8"]] },
+                { "id": 23, "name": "Tetrad", "objective": "Let exactly 4 blue marbles reach the end. (Intercept the 5th.)", "page": 45, "start": "left", "supplies": [8, 8], "limits": { "3": 0, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 6, 0], [3, 3, 3, 0], [5, 3, 3, 0], [2, 4, 3, 1], [4, 4, 6, 0], [3, 5, 3, 0], [5, 5, 3, 0], [2, 6, 3, 1], [4, 6, 6, 0], [3, 7, 3, 0], [5, 7, 5, 0], [2, 8, 3, 1], [3, 9, 3, 0], [2, 10, 3, 1], [3, 11, 3, 0]], "output": "bbbb", "variableMax": 0, "labels": [] },
+                { "id": 24, "name": "Ennead", "objective": "Let exactly 9 blue marbles reach the end. (Intercept the 10th.)", "page": 46, "start": "left", "supplies": [12, 12], "limits": { "3": 14, "4": 0, "5": 1, "6": 0, "7": 0, "8": 0 }, "layout": [[4, 2, 6, 0], [4, 4, 6, 0], [4, 6, 6, 0], [4, 8, 6, 0]], "output": "bbbbbbbbb", "variableMax": 0, "labels": [] },
+                { "id": 25, "name": "Regular Expression", "objective": "Generate the required pattern.", "page": 47, "start": "left", "supplies": [8, 8], "limits": { "3": -1, "4": 0, "5": 1, "6": 5, "7": 0, "8": 0 }, "layout": [], "output": "bbbbbbbrrr", "variableMax": 0, "labels": [] },
+                { "id": 26, "name": "Nucleus", "objective": "Generate the required pattern.", "page": 48, "start": "left", "supplies": [10, 10], "limits": { "3": -1, "4": 2, "5": 0, "6": 2, "7": 0, "8": 0 }, "layout": [[8, 2, 6, 0], [9, 3, 5, 0]], "output": "bbbbrbbbb", "variableMax": 0, "labels": [] },
+                { "id": 27, "name": "Reflection", "objective": "Reverse the direction of each of the 9 starting bits, regardless of the direction they point to start.", "page": 49, "start": "either", "supplies": [8, 8], "limits": { "3": -1, "4": 0, "5": 1, "6": 1, "7": 0, "8": 0 }, "layout": [[3, 3, 6, 0], [9, 3, 6, 0], [6, 4, 6, 0], [3, 5, 6, 0], [6, 6, 6, 0], [3, 7, 6, 0], [6, 8, 6, 0], [3, 9, 6, 0], [6, 10, 6, 0]], "output": "", "variableMax": 0, "labels": [] },
+                { "id": 28, "name": "Latch", "objective": "Release only the blue marbles.", "page": 52, "start": "left", "supplies": [8, 8], "limits": { "3": 1, "4": 0, "5": 0, "6": 0, "7": 1, "8": 1 }, "layout": [[4, 2, 3, 1], [8, 2, 3, 0], [5, 3, 3, 1], [7, 3, 3, 0], [6, 4, 7, 0], [4, 6, 3, 1], [8, 6, 3, 0], [5, 7, 3, 0], [7, 7, 3, 1], [4, 8, 3, 1], [8, 8, 3, 0], [5, 9, 3, 0], [7, 9, 3, 1], [4, 10, 3, 1], [8, 10, 3, 0], [5, 11, 3, 0], [7, 11, 3, 1]], "output": "bbbbbbbb", "variableMax": 0, "labels": [] },
+                { "id": 29, "name": "One-Shot Switch", "objective": "Release a blue marble, a red marble, and then the rest of the blue marbles.", "page": 53, "start": "left", "supplies": [8, 8], "limits": { "3": -1, "4": 1, "5": 0, "6": 0, "7": 1, "8": 1 }, "layout": [[4, 2, 7, 0]], "output": "brbbbbbbb", "variableMax": 0, "labels": [] },
+                { "id": 30, "name": "Overflow", "objective": "Count the blue marbles in register A. If there are more than 7, gear bit OV must flip right (and stay right) to indicate the overflow.", "page": 54, "start": "left", "supplies": [8, 0], "limits": { "3": -1, "4": 0, "5": 0, "6": 0, "7": 1, "8": 1 }, "layout": [[4, 2, 6, 1], [4, 4, 6, 1], [4, 6, 6, 1], [3, 7, 7, 1]], "output": "", "variableMax": 20, "labels": [[5, 5, "A"], [4, 2, "1"], [4, 4, "2"], [4, 6, "4"], [3, 7, "OV"]] }
+            ]);
+        }
+    };
+});
+System.register("board/challenges", ["board/builder", "board/challenge-data"], function (exports_28, context_28) {
+    "use strict";
+    var __moduleName = context_28 && context_28.id;
+    var builder_1, challenge_data_1, Challenges;
+    return {
+        setters: [
+            function (builder_1_1) {
+                builder_1 = builder_1_1;
+            },
+            function (challenge_data_1_1) {
+                challenge_data_1 = challenge_data_1_1;
+            }
+        ],
+        execute: function () {
+            // Challenge loading changes the machine setup, never its routing or physics.
+            Challenges = class Challenges {
+                static find(id) {
+                    return challenge_data_1.CHALLENGES.filter(item => item.id === id)[0] || null;
+                }
+                static load(board, id, blueCount) {
+                    const definition = Challenges.find(id);
+                    if (!definition)
+                        return false;
+                    board.cancelInteraction();
+                    builder_1.BoardBuilder.initStandardBoard(board);
+                    board.bulkUpdate = true;
+                    for (const item of definition.layout) {
+                        const part = board.partFactory.make(item[2]);
+                        if (part.canFlip)
+                            part.isFlipped = item[3] === 0;
+                        else if (part.canRotate)
+                            part.rotation = 1 - item[3];
+                        part.isLocked = true;
+                        board.setPart(part, item[0], item[1]);
+                    }
+                    for (const drop of board.drops) {
+                        let count = definition.supplies[drop.isFlipped ? 1 : 0];
+                        if (!drop.isFlipped && definition.variableMax && blueCount !== undefined)
+                            count = Math.max(0, Math.min(definition.variableMax, Math.floor(blueCount)));
+                        board.setDropBallCount(drop, count);
+                    }
+                    board.bulkUpdate = false;
+                    Challenges.restoreSession(board, id);
+                    return true;
+                }
+                // Used by saved PNG boards and URL state after their grid has been restored.
+                static restoreSession(board, id) {
+                    const definition = Challenges.find(id);
+                    if (!definition || board.columnCount !== 13 || board.rowCount !== 17)
+                        return false;
+                    for (const item of definition.layout) {
+                        const part = board.getPart(item[0], item[1]);
+                        if (!part || part.type !== item[2])
+                            return false;
+                    }
+                    board.clearChallenge();
+                    board.challengeId = id;
+                    board.challengeStart = definition.start;
+                    board.challengeLimits = definition.limits;
+                    board.allowBoardResize = false;
+                    for (const item of definition.layout) {
+                        const part = board.getPart(item[0], item[1]);
+                        part.isLocked = true;
+                        part.alpha = 0.65;
+                        board.challengeFixedParts.add(part);
+                    }
+                    board.challengeLabels = definition.labels.map(item => ({
+                        column: Number(item[0]) + 0.36, row: Number(item[1]) + 0.35,
+                        text: String(item[2])
+                    }));
+                    board.onChange();
+                    return true;
+                }
+            };
+            Challenges.definitions = challenge_data_1.CHALLENGES;
+            exports_28("Challenges", Challenges);
+        }
+    };
+});
+System.register("board/serializer", ["parts/drop", "board/challenges"], function (exports_29, context_29) {
+    "use strict";
+    var __moduleName = context_29 && context_29.id;
+    var drop_3, challenges_1, URLBoardSerializer;
     return {
         setters: [
             function (drop_3_1) {
                 drop_3 = drop_3_1;
+            },
+            function (challenges_1_1) {
+                challenges_1 = challenges_1_1;
             }
         ],
         execute: function () {
@@ -3479,9 +3737,12 @@ System.register("board/serializer", ["parts/drop"], function (exports_26, contex
                     for (const drop of this._getSortedDrops()) {
                         items.push('d ' + drop.hue + ' ' + drop.balls.size);
                     }
+                    if (this.board.challengeId)
+                        items.push('c ' + this.board.challengeId);
                     return (items.join(' '));
                 }
                 _readMetadata(s) {
+                    this.board.clearChallenge();
                     const drops = this._getSortedDrops();
                     // tokenize the string
                     const tokens = s.split(' ');
@@ -3503,6 +3764,8 @@ System.register("board/serializer", ["parts/drop"], function (exports_26, contex
                                 this.board.setDropBallCount(drop, Math.floor(params[1]));
                             }
                         }
+                        if ((type === 'c') && (params.length === 1))
+                            challenges_1.Challenges.restoreSession(this.board, params[0]);
                     }
                 }
                 _getSortedDrops() {
@@ -3566,6 +3829,8 @@ System.register("board/serializer", ["parts/drop"], function (exports_26, contex
                         let s, metadata = '';
                         // read parts and metadata from the image's pixels
                         this.board.bulkUpdate = true;
+                        this.board.cancelInteraction();
+                        this.board.clearChallenge();
                         this.board.setSize(w, 0, false);
                         let r = 0;
                         for (let y = 0; y < h; y++) {
@@ -3803,13 +4068,13 @@ System.register("board/serializer", ["parts/drop"], function (exports_26, contex
                     return (s);
                 }
             };
-            exports_26("URLBoardSerializer", URLBoardSerializer);
+            exports_29("URLBoardSerializer", URLBoardSerializer);
         }
     };
 });
-System.register("board/controls", ["pixi.js", "renderer", "ui/config"], function (exports_27, context_27) {
+System.register("board/controls", ["pixi.js", "renderer", "ui/config"], function (exports_30, context_30) {
     "use strict";
-    var __moduleName = context_27 && context_27.id;
+    var __moduleName = context_30 && context_30.id;
     var PIXI, renderer_5, config_2, ColorWheel, SpriteWithSize, DropButton, TurnButton, BallCounter;
     return {
         setters: [
@@ -3862,7 +4127,7 @@ System.register("board/controls", ["pixi.js", "renderer", "ui/config"], function
                     renderer_5.Renderer.needsUpdate();
                 }
             };
-            exports_27("ColorWheel", ColorWheel);
+            exports_30("ColorWheel", ColorWheel);
             SpriteWithSize = class SpriteWithSize extends PIXI.Sprite {
                 // the size of the control
                 get size() { return (this.width); }
@@ -3888,7 +4153,7 @@ System.register("board/controls", ["pixi.js", "renderer", "ui/config"], function
                     this.anchor.set(0.5, 0.5);
                 }
             };
-            exports_27("DropButton", DropButton);
+            exports_30("DropButton", DropButton);
             TurnButton = class TurnButton extends SpriteWithSize {
                 constructor(textures) {
                     super(textures['TurnButton-f']);
@@ -3896,7 +4161,7 @@ System.register("board/controls", ["pixi.js", "renderer", "ui/config"], function
                     this.anchor.set(0.5, 0.5);
                 }
             };
-            exports_27("TurnButton", TurnButton);
+            exports_30("TurnButton", TurnButton);
             BallCounter = class BallCounter extends PIXI.Sprite {
                 constructor() {
                     super();
@@ -3924,13 +4189,13 @@ System.register("board/controls", ["pixi.js", "renderer", "ui/config"], function
                         renderer_5.Renderer.needsUpdate();
                 }
             };
-            exports_27("BallCounter", BallCounter);
+            exports_30("BallCounter", BallCounter);
         }
     };
 });
-System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants", "renderer", "board/rail"], function (exports_28, context_28) {
+System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants", "renderer", "board/rail"], function (exports_31, context_31) {
     "use strict";
-    var __moduleName = context_28 && context_28.id;
+    var __moduleName = context_31 && context_31.id;
     var PIXI, drop_4, constants_6, renderer_6, rail_3, PITCH, CUP, RELEASE, SupplyGuide;
     return {
         setters: [
@@ -4261,13 +4526,13 @@ System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants"
                     renderer_6.Renderer.needsUpdate();
                 }
             };
-            exports_28("SupplyGuide", SupplyGuide);
+            exports_31("SupplyGuide", SupplyGuide);
         }
     };
 });
-System.register("board/outputregister", ["pixi.js", "board/constants", "board/centerblock", "renderer"], function (exports_29, context_29) {
+System.register("board/outputregister", ["pixi.js", "board/constants", "board/centerblock", "renderer"], function (exports_32, context_32) {
     "use strict";
-    var __moduleName = context_29 && context_29.id;
+    var __moduleName = context_32 && context_32.id;
     var PIXI, constants_7, centerblock_3, renderer_7, PITCH, RATE, OutputRegister;
     return {
         setters: [
@@ -4481,13 +4746,13 @@ System.register("board/outputregister", ["pixi.js", "board/constants", "board/ce
                     renderer_7.Renderer.needsUpdate();
                 }
             };
-            exports_29("OutputRegister", OutputRegister);
+            exports_32("OutputRegister", OutputRegister);
         }
     };
 });
-System.register("ui/keyboard", [], function (exports_30, context_30) {
+System.register("ui/keyboard", [], function (exports_33, context_33) {
     "use strict";
-    var __moduleName = context_30 && context_30.id;
+    var __moduleName = context_33 && context_33.id;
     function makeKeyHandler(key) {
         const handler = {
             key: key,
@@ -4517,24 +4782,24 @@ System.register("ui/keyboard", [], function (exports_30, context_30) {
         window.addEventListener('keyup', handler.upHandler.bind(handler), false);
         return (handler);
     }
-    exports_30("makeKeyHandler", makeKeyHandler);
+    exports_33("makeKeyHandler", makeKeyHandler);
     return {
         setters: [],
         execute: function () {
         }
     };
 });
-System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", "ui/config", "util/disjoint", "renderer", "parts/ball", "board/constants", "board/physics", "board/schematic", "parts/drop", "board/controls", "ui/animator", "parts/turnstile", "board/centerblock", "board/supplyguide", "board/outputregister", "ui/keyboard"], function (exports_31, context_31) {
+System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", "ui/config", "util/disjoint", "renderer", "parts/ball", "board/constants", "board/physics", "board/schematic", "parts/drop", "board/controls", "ui/animator", "parts/turnstile", "board/centerblock", "board/supplyguide", "board/outputregister", "ui/keyboard"], function (exports_34, context_34) {
     "use strict";
-    var __moduleName = context_31 && context_31.id;
-    var filter, fence_5, gearbit_4, config_3, disjoint_1, renderer_8, ball_5, constants_8, physics_1, schematic_1, drop_5, controls_1, animator_4, turnstile_6, centerblock_4, supplyguide_1, outputregister_1, keyboard_1, SPACING_FACTOR, Board;
+    var __moduleName = context_34 && context_34.id;
+    var filter, fence_6, gearbit_4, config_3, disjoint_1, renderer_8, ball_5, constants_8, physics_1, schematic_1, drop_5, controls_1, animator_4, turnstile_6, centerblock_4, supplyguide_1, outputregister_1, keyboard_1, SPACING_FACTOR, Board;
     return {
         setters: [
             function (filter_1) {
                 filter = filter_1;
             },
-            function (fence_5_1) {
-                fence_5 = fence_5_1;
+            function (fence_6_1) {
+                fence_6 = fence_6_1;
             },
             function (gearbit_4_1) {
                 gearbit_4 = gearbit_4_1;
@@ -4586,7 +4851,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
             }
         ],
         execute: function () {
-            exports_31("SPACING_FACTOR", SPACING_FACTOR = 1.0625);
+            exports_34("SPACING_FACTOR", SPACING_FACTOR = 1.0625);
             Board = class Board {
                 constructor(partFactory) {
                     this.partFactory = partFactory;
@@ -4594,6 +4859,12 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     this._layers = new PIXI.Container();
                     // a serializer for the board state
                     this.serializer = null;
+                    this.challengeId = 0;
+                    this.challengeStart = 'either';
+                    this.challengeLimits = null;
+                    this.challengeFixedParts = new Set();
+                    this.challengeLabels = [];
+                    this._challengeLabelView = new PIXI.Container();
                     // the set of balls currently on the board
                     this.balls = new Set();
                     this._changeCounter = 0;
@@ -4643,7 +4914,62 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     this._layers.addChildAt(this.outputRegister.view, 0);
                     this._layers.addChildAt(this.supplyGuide.view, 0);
                     this._layers.addChild(this._centerBlockView);
+                    this._layers.addChild(this._challengeLabelView);
                     this._bindKeyEvents();
+                }
+                clearChallenge() {
+                    for (const part of this.challengeFixedParts)
+                        part.alpha = 1;
+                    this.challengeId = 0;
+                    this.challengeStart = 'either';
+                    this.challengeLimits = null;
+                    this.challengeFixedParts.clear();
+                    this.challengeLabels = [];
+                    this.onChange();
+                }
+                remainingParts(type) {
+                    if (!this.challengeLimits)
+                        return Infinity;
+                    const limit = this.challengeLimits[type];
+                    if (limit === undefined)
+                        return 0;
+                    if (limit < 0)
+                        return Infinity;
+                    let used = 0;
+                    for (const row of this._grid)
+                        for (const part of row)
+                            if (part && part.type === type && !this.challengeFixedParts.has(part))
+                                used++;
+                    return Math.max(0, limit - used);
+                }
+                canStartDrop(drop) {
+                    return !this.challengeId || this.challengeStart === 'either' ||
+                        this.challengeStart === (drop.isFlipped ? 'right' : 'left');
+                }
+                cancelInteraction() {
+                    this.partPrototype = null;
+                    this._dragging = false;
+                    this._isMouseDown = false;
+                    this._action = 0 /* PAN */;
+                    this._actionPart = null;
+                    this._dragFlippedParts.clear();
+                }
+                _drawChallengeLabels() {
+                    while (this._challengeLabelView.children.length > this.challengeLabels.length) {
+                        const child = this._challengeLabelView.children[this._challengeLabelView.children.length - 1];
+                        this._challengeLabelView.removeChild(child);
+                        child.destroy();
+                    }
+                    this.challengeLabels.forEach((item, index) => {
+                        let label = this._challengeLabelView.children[index];
+                        if (!label) {
+                            label = new PIXI.Text('', { fontFamily: 'Arial', fontWeight: 'bold', fill: 0x116b78 });
+                            this._challengeLabelView.addChild(label);
+                        }
+                        label.text = item.text;
+                        label.style.fontSize = Math.max(8, this.partSize * 0.2);
+                        label.position.set(this.xForColumn(item.column), this.yForRow(item.row));
+                    });
                 }
                 // a counter that increments whenever the board changes
                 get changeCounter() { return (this._changeCounter); }
@@ -4707,6 +5033,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 get areBallsAtRest() { return (this._areBallsAtRest); }
                 // LAYERS *******************************************************************
                 _updateSpriteVisibility() {
+                    this._drawChallengeLabels();
                     this._drawCenterBlocks();
                     this.outputRegister.draw();
                     this.supplyGuide.draw();
@@ -5313,6 +5640,13 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 }
                 // whether a part can be placed at the given row and column
                 canPlacePart(type, column, row) {
+                    if (this.challengeId) {
+                        if (type < 3 /* RAMP */ || type > 8 /* GEAR */)
+                            return false;
+                        const current = this.getPart(column, row);
+                        if (this.remainingParts(type) <= 0 && (!current || current.type !== type))
+                            return false;
+                    }
                     if (type == 9 /* BALL */) {
                         return ((row >= 0.0) && (column >= 0.0) &&
                             (row < this.rowCount) && (column < this.columnCount));
@@ -5333,7 +5667,9 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 // whether the part at the given location can be flipped
                 canFlipPart(column, row) {
                     const part = this.getPart(column, row);
-                    return ((part) && (part.canFlip || part.canRotate) && (!part.isLocked));
+                    return ((part) && (part.canFlip || part.canRotate) &&
+                        (!part.isLocked || (this.challengeFixedParts.has(part) &&
+                            (part.type === 6 /* BIT */ || part.type === 7 /* GEARBIT */))));
                 }
                 // whether the part at the given location can be dragged
                 canDragPart(column, row) {
@@ -5405,6 +5741,13 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     const oldPart = this.getPart(column, row);
                     if (oldPart === newPart)
                         return;
+                    if (this.challengeId && !this.bulkUpdate) {
+                        if (this.challengeFixedParts.has(oldPart))
+                            return;
+                        if (newPart && newPart.type >= 3 /* RAMP */ &&
+                            !this.canPlacePart(newPart.type, column, row))
+                            return;
+                    }
                     this._grid[row][column] = newPart;
                     if (newPart)
                         this.layoutPart(newPart, column, row);
@@ -5430,7 +5773,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         }
                     }
                     // update fences
-                    if ((oldPart instanceof fence_5.Slope) || (newPart instanceof fence_5.Slope)) {
+                    if ((oldPart instanceof fence_6.Slope) || (newPart instanceof fence_6.Slope)) {
                         if (!this.bulkUpdate)
                             this._connectSlopes();
                     }
@@ -5464,7 +5807,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 // flip the part at the given coordinates
                 flipPart(column, row) {
                     const part = this.getPart(column, row);
-                    if ((part instanceof fence_5.Slope) || (part instanceof fence_5.Side)) {
+                    if ((part instanceof fence_6.Slope) || (part instanceof fence_6.Side)) {
                         this._flipFence(column, row);
                     }
                     else if (part)
@@ -5523,6 +5866,8 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 }
                 // add a ball to the given drop without returning all balls to it
                 addBallToDrop(drop) {
+                    if (this.challengeId)
+                        return;
                     if (this.supplyGuide.includes(drop)) {
                         const ball = this.partFactory.make(9 /* BALL */);
                         ball.drop = drop;
@@ -5585,7 +5930,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                                     }
                                 }
                             }
-                            else if (part instanceof fence_5.Slope) {
+                            else if (part instanceof fence_6.Slope) {
                                 const left = part.sequence / part.modulus;
                                 const right = (part.sequence + 1) / part.modulus;
                                 const sign = part.isFlipped ? -1 : 1;
@@ -5794,7 +6139,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     let slopes = [];
                     for (const row of this._grid) {
                         for (const part of row) {
-                            if (part instanceof fence_5.Slope) {
+                            if (part instanceof fence_6.Slope) {
                                 if ((slopes.length > 0) &&
                                     (slopes[0].isFlipped !== part.isFlipped)) {
                                     this._makeSlope(slopes);
@@ -5824,7 +6169,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                 // flip a fence part
                 _flipFence(column, row) {
                     const part = this.getPart(column, row);
-                    if ((!(part instanceof fence_5.Slope)) && (!(part instanceof fence_5.Side)))
+                    if ((!(part instanceof fence_6.Slope)) && (!(part instanceof fence_6.Side)))
                         return;
                     const wasFlipped = part.isFlipped;
                     const type = part.type;
@@ -5837,7 +6182,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         }
                         return (false);
                     };
-                    if (part instanceof fence_5.Slope) {
+                    if (part instanceof fence_6.Slope) {
                         // go right
                         for (let c = column + 1; c < this._columnCount; c++) {
                             if (!shouldContinue(this.getPart(c, row)))
@@ -5849,7 +6194,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                                 break;
                         }
                     }
-                    else if (part instanceof fence_5.Side) {
+                    else if (part instanceof fence_6.Side) {
                         // go down
                         for (let r = row + 1; r < this._rowCount; r++) {
                             if (!shouldContinue(this.getPart(column, r)))
@@ -6030,7 +6375,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     }
                     else if (this._action === 4 /* FLIP_PART */) {
                         const part = this.getPart(column, row);
-                        if ((part) && (!part.isLocked) &&
+                        if ((part) && (this.canFlipPart(column, row)) &&
                             (!this._dragFlippedParts.has(part))) {
                             this.flipPart(column, row);
                             this._dragFlippedParts.add(part);
@@ -6146,14 +6491,18 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     this._actionPart = this.getPart(column, row);
                     let ball;
                     const startControl = this.startControlAt(c, r);
-                    if (this.tool === 1 /* PART */ && this.partPrototype && this.partPrototype.type === 9 /* BALL */ && this.marbleSupplyAt(c, r)) {
+                    if (!this.challengeId && this.tool === 1 /* PART */ && this.partPrototype && this.partPrototype.type === 9 /* BALL */ && this.marbleSupplyAt(c, r)) {
                         this._action = 2 /* PLACE_BALL */;
                         cursor = 'pointer';
                     }
-                    else if (startControl) {
+                    else if (startControl && this.canStartDrop(startControl instanceof turnstile_6.Turnstile ? startControl.drop : startControl)) {
                         this._action = startControl instanceof turnstile_6.Turnstile ? 8 /* TURN_TURNSTILE */ : 7 /* DROP_BALL */;
                         this._actionPart = startControl;
                         cursor = 'pointer';
+                    }
+                    else if (startControl) {
+                        this._action = 0 /* PAN */;
+                        this._actionPart = null;
                     }
                     else if (this._controlKeyDown) {
                         this._action = 0 /* PAN */;
@@ -6186,7 +6535,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                         cursor = 'pointer';
                     }
                     else if ((this.tool == 3 /* HAND */) &&
-                        (ball = this.ballUnder(c, r))) {
+                        (!this.challengeId) && (ball = this.ballUnder(c, r))) {
                         this._action = 5 /* DRAG_PART */;
                         this._actionPart = ball;
                         cursor = 'grab';
@@ -6336,13 +6685,13 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     }
                 }
             };
-            exports_31("Board", Board);
+            exports_34("Board", Board);
         }
     };
 });
-System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exports_32, context_32) {
+System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exports_35, context_35) {
     "use strict";
-    var __moduleName = context_32 && context_32.id;
+    var __moduleName = context_35 && context_35.id;
     var PIXI, config_4, renderer_9, Button, PartButton, SpriteButton, ButtonBar;
     return {
         setters: [
@@ -6454,7 +6803,7 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                     renderer_9.Renderer.needsUpdate();
                 }
             };
-            exports_32("Button", Button);
+            exports_35("Button", Button);
             PartButton = class PartButton extends Button {
                 constructor(part) {
                     super();
@@ -6499,7 +6848,7 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                         this.part.size = Math.floor(this.size * 0.75);
                 }
             };
-            exports_32("PartButton", PartButton);
+            exports_35("PartButton", PartButton);
             SpriteButton = class SpriteButton extends Button {
                 constructor(sprite) {
                     super();
@@ -6519,7 +6868,7 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                     }
                 }
             };
-            exports_32("SpriteButton", SpriteButton);
+            exports_35("SpriteButton", SpriteButton);
             ButtonBar = class ButtonBar extends PIXI.Container {
                 constructor() {
                     super();
@@ -6626,13 +6975,13 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                     return (m + ((w - m) * this._buttons.length));
                 }
             };
-            exports_32("ButtonBar", ButtonBar);
+            exports_35("ButtonBar", ButtonBar);
         }
     };
 });
-System.register("ui/toolbar", ["pixi.js", "ui/button", "renderer"], function (exports_33, context_33) {
+System.register("ui/toolbar", ["pixi.js", "ui/button", "renderer"], function (exports_36, context_36) {
     "use strict";
-    var __moduleName = context_33 && context_33.id;
+    var __moduleName = context_36 && context_36.id;
     var PIXI, button_1, renderer_10, Toolbar;
     return {
         setters: [
@@ -6708,146 +7057,14 @@ System.register("ui/toolbar", ["pixi.js", "ui/button", "renderer"], function (ex
                     renderer_10.Renderer.needsUpdate();
                 }
             };
-            exports_33("Toolbar", Toolbar);
+            exports_36("Toolbar", Toolbar);
         }
     };
 });
-System.register("board/builder", ["parts/fence"], function (exports_34, context_34) {
+System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/config", "renderer", "board/serializer", "ui/animator", "board/builder"], function (exports_37, context_37) {
     "use strict";
-    var __moduleName = context_34 && context_34.id;
-    var fence_6, BoardBuilder;
-    return {
-        setters: [
-            function (fence_6_1) {
-                fence_6 = fence_6_1;
-            }
-        ],
-        execute: function () {
-            BoardBuilder = class BoardBuilder {
-                static initStandardBoard(board, redBlueDistance = 5, verticalDrop = 11) {
-                    let r, c, run;
-                    const width = (redBlueDistance * 2) + 3;
-                    const center = Math.floor(width / 2);
-                    const blueColumn = center - Math.floor(redBlueDistance / 2);
-                    const redColumn = center + Math.floor(redBlueDistance / 2);
-                    const dropLevel = (blueColumn % 2 == 0) ? 1 : 2;
-                    const collectLevel = dropLevel + verticalDrop;
-                    const steps = Math.ceil(center / fence_6.Slope.maxModulus);
-                    const maxModulus = Math.ceil(center / steps);
-                    const height = collectLevel + steps + 4;
-                    board.bulkUpdate = true;
-                    board.setSize(width, height, false);
-                    board.clear(true);
-                    // block out unreachable locations at the top
-                    const blank = board.partFactory.make(0 /* BLANK */);
-                    blank.isLocked = true;
-                    for (r = 0; r < height; r++) {
-                        for (c = 0; c < width; c++) {
-                            const blueCantReach = ((r + c) < (blueColumn + dropLevel)) ||
-                                ((c - r) > (blueColumn - dropLevel));
-                            const redCantReach = ((r + c) < (redColumn + dropLevel)) ||
-                                ((c - r) > (redColumn - dropLevel));
-                            if ((blueCantReach && redCantReach) || (r <= dropLevel)) {
-                                board.setPart(board.partFactory.copy(blank), c, r);
-                            }
-                        }
-                    }
-                    // add fences on the sides
-                    const side = board.partFactory.make(12 /* SIDE */);
-                    side.isLocked = true;
-                    const flippedSide = board.partFactory.copy(side);
-                    flippedSide.flip();
-                    for (r = dropLevel - 1; r < collectLevel; r++) {
-                        board.setPart(board.partFactory.copy(side), 0, r);
-                        board.setPart(board.partFactory.copy(flippedSide), width - 1, r);
-                    }
-                    // add collection slopes at the bottom
-                    const slope = board.partFactory.make(13 /* SLOPE */);
-                    slope.isLocked = true;
-                    const flippedSlope = board.partFactory.copy(slope);
-                    flippedSlope.flip();
-                    r = collectLevel;
-                    run = 0;
-                    for (c = 0; c < center - 1; c++, run++) {
-                        if (run >= maxModulus) {
-                            r++;
-                            run = 0;
-                        }
-                        board.setPart(board.partFactory.copy(slope), c, r);
-                    }
-                    r = collectLevel;
-                    run = 0;
-                    for (c = width - 1; c > center + 1; c--, run++) {
-                        if (run >= maxModulus) {
-                            r++;
-                            run = 0;
-                        }
-                        board.setPart(board.partFactory.copy(flippedSlope), c, r);
-                    }
-                    const turnstileLevel = r + 1;
-                    // add hoppers for extra balls
-                    board.setPart(board.partFactory.copy(slope), blueColumn - 2, dropLevel - 1);
-                    board.setPart(board.partFactory.copy(flippedSlope), blueColumn, dropLevel - 1);
-                    board.setPart(board.partFactory.copy(slope), redColumn, dropLevel - 1);
-                    board.setPart(board.partFactory.copy(flippedSlope), redColumn + 2, dropLevel - 1);
-                    // block out the unreachable locations at the bottom
-                    for (r = collectLevel; r < height; r++) {
-                        for (c = 0; c < width; c++) {
-                            const p = board.getPart(c, r);
-                            if ((p instanceof fence_6.Side) || (p instanceof fence_6.Slope))
-                                break;
-                            board.setPart(board.partFactory.copy(blank), c, r);
-                        }
-                        for (c = width - 1; c >= 0; c--) {
-                            const p = board.getPart(c, r);
-                            if ((p instanceof fence_6.Side) || (p instanceof fence_6.Slope))
-                                break;
-                            board.setPart(board.partFactory.copy(blank), c, r);
-                        }
-                    }
-                    // make a fence to collect balls
-                    const rightSide = center + fence_6.Slope.maxModulus;
-                    for (c = center; c < rightSide; c++) {
-                        board.setPart(board.partFactory.copy(slope), c, height - 1);
-                        board.setPart(board.partFactory.copy(flippedSlope), c, height - 3);
-                    }
-                    for (r = height - 3; r <= height - 1; r++) {
-                        board.setPart(board.partFactory.copy(side), rightSide, r);
-                    }
-                    board.setPart(board.partFactory.copy(slope), center - 1, height - 2);
-                    board.setPart(board.partFactory.copy(slope), center - 2, height - 3);
-                    // make ball drops
-                    const blueDrop = board.partFactory.make(10 /* DROP */);
-                    board.setPart(blueDrop, blueColumn - 1, dropLevel);
-                    blueDrop.hue = 220;
-                    blueDrop.isLocked = true;
-                    const redDrop = board.partFactory.make(10 /* DROP */);
-                    redDrop.isFlipped = true;
-                    board.setPart(redDrop, redColumn + 1, dropLevel);
-                    redDrop.hue = 0;
-                    redDrop.isLocked = true;
-                    // add balls
-                    board.setDropBallCount(blueDrop, 8);
-                    board.setDropBallCount(redDrop, 8);
-                    // make turnstiles
-                    const blueTurnstile = board.partFactory.make(11 /* TURNSTILE */);
-                    blueTurnstile.isLocked = true;
-                    board.setPart(blueTurnstile, center - 1, turnstileLevel);
-                    const redTurnstile = board.partFactory.make(11 /* TURNSTILE */);
-                    redTurnstile.isLocked = true;
-                    redTurnstile.isFlipped = true;
-                    board.setPart(redTurnstile, center + 1, turnstileLevel);
-                    board.bulkUpdate = false;
-                }
-            };
-            exports_34("BoardBuilder", BoardBuilder);
-        }
-    };
-});
-System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/config", "renderer", "board/serializer", "ui/animator", "board/builder"], function (exports_35, context_35) {
-    "use strict";
-    var __moduleName = context_35 && context_35.id;
-    var PIXI, board_2, button_2, config_5, renderer_11, serializer_1, animator_5, builder_1, Actionbar, BoardDrawer;
+    var __moduleName = context_37 && context_37.id;
+    var PIXI, board_2, button_2, config_5, renderer_11, serializer_1, animator_5, builder_2, Actionbar, BoardDrawer;
     return {
         setters: [
             function (PIXI_10) {
@@ -6871,8 +7088,8 @@ System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/conf
             function (animator_5_1) {
                 animator_5 = animator_5_1;
             },
-            function (builder_1_1) {
-                builder_1 = builder_1_1;
+            function (builder_2_1) {
+                builder_2 = builder_2_1;
             }
         ],
         execute: function () {
@@ -7085,7 +7302,7 @@ System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/conf
                     }
                 }
             };
-            exports_35("Actionbar", Actionbar);
+            exports_37("Actionbar", Actionbar);
             BoardDrawer = class BoardDrawer extends button_2.ButtonBar {
                 constructor(board) {
                     super();
@@ -7110,15 +7327,15 @@ System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/conf
                 }
                 onButtonClick(button) {
                     if (button === this._smallButton) {
-                        builder_1.BoardBuilder.initStandardBoard(this.board, 5, 11);
+                        builder_2.BoardBuilder.initStandardBoard(this.board, 5, 11);
                         this.zoomToFit();
                     }
                     else if (button === this._mediumButton) {
-                        builder_1.BoardBuilder.initStandardBoard(this.board, 7, 15);
+                        builder_2.BoardBuilder.initStandardBoard(this.board, 7, 15);
                         this.zoomToFit();
                     }
                     else if (button === this._largeButton) {
-                        builder_1.BoardBuilder.initStandardBoard(this.board, 9, 19);
+                        builder_2.BoardBuilder.initStandardBoard(this.board, 9, 19);
                         this.zoomToFit();
                     }
                     else if (button === this._clearButton) {
@@ -7148,13 +7365,13 @@ System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/conf
                 }
                 updateToggled() { }
             };
-            exports_35("BoardDrawer", BoardDrawer);
+            exports_37("BoardDrawer", BoardDrawer);
         }
     };
 });
-System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar", "ui/actionbar", "renderer", "ui/animator", "ui/keyboard", "parts/gearbit"], function (exports_36, context_36) {
+System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar", "ui/actionbar", "renderer", "ui/animator", "ui/keyboard", "parts/gearbit"], function (exports_38, context_38) {
     "use strict";
-    var __moduleName = context_36 && context_36.id;
+    var __moduleName = context_38 && context_38.id;
     var PIXI, board_3, factory_2, toolbar_1, actionbar_1, renderer_12, animator_6, keyboard_2, gearbit_5, SimulatorApp;
     return {
         setters: [
@@ -7252,14 +7469,14 @@ System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar",
                     };
                 }
             };
-            exports_36("SimulatorApp", SimulatorApp);
+            exports_38("SimulatorApp", SimulatorApp);
         }
     };
 });
-System.register("index", ["pixi.js", "app", "renderer", "board/builder", "board/serializer"], function (exports_37, context_37) {
+System.register("index", ["pixi.js", "app", "renderer", "board/builder", "board/serializer", "board/challenges"], function (exports_39, context_39) {
     "use strict";
-    var __moduleName = context_37 && context_37.id;
-    var PIXI, app_1, renderer_13, builder_2, serializer_2, sim, container, resizeApp, loader;
+    var __moduleName = context_39 && context_39.id;
+    var PIXI, app_1, renderer_13, builder_3, serializer_2, challenges_2, sim, container, resizeApp, loader;
     return {
         setters: [
             function (PIXI_12) {
@@ -7271,11 +7488,14 @@ System.register("index", ["pixi.js", "app", "renderer", "board/builder", "board/
             function (renderer_13_1) {
                 renderer_13 = renderer_13_1;
             },
-            function (builder_2_1) {
-                builder_2 = builder_2_1;
+            function (builder_3_1) {
+                builder_3 = builder_3_1;
             },
             function (serializer_2_1) {
                 serializer_2 = serializer_2_1;
+            },
+            function (challenges_2_1) {
+                challenges_2 = challenges_2_1;
             }
         ],
         execute: function () {
@@ -7307,7 +7527,7 @@ System.register("index", ["pixi.js", "app", "renderer", "board/builder", "board/
                     renderer_13.Renderer.stage.addChild(sim);
                     // set up the standard board if there was no state
                     if (!restored) {
-                        builder_2.BoardBuilder.initStandardBoard(sim.board);
+                        builder_3.BoardBuilder.initStandardBoard(sim.board);
                         sim.actionbar.zoomToFit();
                     }
                     // remove the loading animation
@@ -7321,7 +7541,7 @@ System.register("index", ["pixi.js", "app", "renderer", "board/builder", "board/
                     // attach the stage to the document and fade it in
                     container.appendChild(renderer_13.Renderer.instance.view);
                     container.style.opacity = '1';
-                    window.dispatchEvent(new CustomEvent('simulator-ready', { detail: { sim, BoardBuilder: builder_2.BoardBuilder } }));
+                    window.dispatchEvent(new CustomEvent('simulator-ready', { detail: { sim, BoardBuilder: builder_3.BoardBuilder, Challenges: challenges_2.Challenges } }));
                     // start the game loop
                     PIXI.ticker.shared.add(sim.update, sim);
                 });

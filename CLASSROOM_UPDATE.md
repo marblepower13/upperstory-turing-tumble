@@ -304,3 +304,8 @@ used to compile this update; existing browser runtime libraries were retained.
 
 Original simulator and artwork: Jesse Crossen, https://github.com/jessecrossen/ttsim
 Retain the repository's LICENSE and third-party license notices.
+
+
+## First 30 puzzle-book challenges (6 November 2026)
+
+Added native challenge definitions, limited part inventories, protected starting parts with Bit/Gear Bit state changes, objectives and required-output instructions, challenge restart/free-build controls, prescribed manual start sides, variable counting supplies, and challenge-aware PNG/URL metadata. See CHALLENGES_UPDATE.md for installation, scope, book-data corrections, and validation. Existing physics and board geometry source files are unchanged.
