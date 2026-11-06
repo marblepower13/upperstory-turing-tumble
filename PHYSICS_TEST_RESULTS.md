@@ -1,78 +1,79 @@
-# Upper Story simulator: solid slopes and center-block verification
+# Upper Story simulator: feed alignment and matched rail pace
 
-Tested November 5, 2026.
+Tested November 6, 2026.
 
-## Current correction
+## Current change
 
-The continuous lower white inlet rails now collide with both marble states.
-Previously their filter accepted only the released category, while a marble's
-release flag resets after it leaves the upper supply area. That excluded normal
-board marbles from the lower rails. The corrected filter accepts both categories.
+The upper feed's drawn line and guided marble-center path derive from the same
+rail endpoints. The center path is offset upward by the marble radius, half the
+visible stroke width and a small rendering margin. This prevents the below-line
+travel shown in the reported screenshot. A short roll-off segment carries the
+marble past the rail tip, and its outgoing velocity transfers to free physics.
 
-A marble landing on the white slope is supported on its upper face and rolls
-inward to the exposed black receiving heel. Only a real lower-lever impact can
-advance the machine. The lever pivots rigidly downward, holds the exit open while
-the passing marble clears, and then returns with its linked upper releaser.
-The minimum open dwell and occupancy hold prevent closing onto a passing marble.
-Pause freezes the complete mechanism.
+A shared RAIL_ROLL_SPEED of three model units per physical simulation step
+controls both upper feeds and lower inlet slopes. Lower speed is applied only
+on real contact with the upper face of a lower rail, with handoff before the
+receiving heel. It does not pull free-falling marbles toward the rail or move
+marbles on the underside. Existing Faster/Slower settings scale both equally.
+Schematic routing uses the same pace and fixed lower-rail geometry.
 
-The fixed center block is wider at the resting tips and tapers to its lower stem.
-Resting clearance is about 1.23 model units on each side; full-depression clearance
-is about 23.21 units for a 20-unit marble. Its concave outer outline is represented
-by two convex rigid-body pieces, so collision testing matches the drawn profile.
-Schematic deflection matches the new outline and keeps a consistent approach side.
+The physics engine integrates gravity between contact corrections. Measured
+lower travel is 3.027–3.055 units per step across the three standard sizes,
+versus upper guided travel of 3.000: under two percent difference. Both paths
+use the same nominal pace, replacing the visibly slower gravity-only roll.
 
-## Method and results
+## Verification method
 
-Checks use the compiled app with its actual hosted Matter.js 0.14.2 bundle and
-stubbed PIXI rendering. DOM checks exercise hosted classroom controls in DOM
-emulation. Actual vector artwork was inspected at rest and full depression.
-A live WebGL/browser layout session was not completed in this environment;
-final visual and pointer review on the intended devices remains necessary.
+Checks load the compiled application and hosted Matter.js 0.14.2 with stubbed
+PIXI rendering. DOM checks use the hosted classroom controls. Actual drawing
+commands were rendered for visual inspection, including a moving marble above
+the upper feed rail. The tests include rounded drawing coordinates at three
+supported zoom sizes. A live WebGL/browser session was not completed; review
+appearance and interaction on the intended classroom screen after uploading.
 
 | Check | Coverage | Result |
 | --- | --- | --- |
-| Direct slope landings | 144 cases: both sides, both marble states, four landing positions, entry speeds 0/4/12 and playback 0.25/1/8 | Every marble contacts the rail first, stays above it, rolls inward at least ten model units before actuation, releases once and collects |
-| Tight center pocket | Actual convex collision pieces | Rest gaps 1.23 units; depressed gap 23.21; no fixed-block movement |
-| Center approaches | 306 physical and 68 schematic cases | One actuation, no sticking and collection; penetration measured against the actual convex pieces |
-| Full machine | 18 combinations of 8/20 per color, blue/red/both starts and 0.25/1/8 speed | All supply totals, actuation, settled collection and exact output order passed; final compiled bundle also reran the simultaneous forty-marble case |
-| Empty board | Both starts at eleven speeds (22 runs) | Released marbles retained, actuated and collected |
-| Blade impacts | 102 position/velocity cases | No missed actuation or stranded marbles |
-| Outer ends | 60 position/outward-speed cases | Invisible guards retain stray marbles and the held-open lever lets them clear |
-| Rigid motion | 606 sampled poses across both sides and three standard sizes | Constant hinge distances, real downward tip travel, counterweight stays below the slope with minimum margin 6.06 units |
-| Same-size resets | 24 resets across three standard sizes, including mid-stroke | Correct supplies, no old cups or duplicate slopes, no extra colliders and next release works |
-| Supply linkage | 8 cases covering both colors, 8/20 counts and both modes | Seating, mirrored rotation, one-press/busy protection, reload, pause and return |
+| Upper feed clearance and pace | 18 feeds: both colors, three standard boards, zoom sizes 24/40/64; 1,902 straight-path samples | Marble center remains above the actual feed line; path advances exactly 3.000 units per step; rounded render coordinates checked |
+| Outlet handoff | Each of the 18 feed cases | Physical body inherits outgoing motion; Return marbles clears pending handoff state |
+| Lower rolling pace | 36 cases: both colors, both marble states, three boards, speeds 0.25/1/8; 2,760 samples | Contact target is 3.000; measured physical travel 3.027–3.055 per step; all marbles collect |
+| Schematic pace | 18 cases across colors, board sizes and speeds; 5,637 samples | Same three-unit pace after iteration scaling; all marbles collect |
+| Solid slope landings | 144 cases across sides, marble states, landing points, entry velocities and playback speeds | Slope contact precedes actuation; marbles stay supported, roll inward, actuate once and collect |
+| Full machine | 18 combinations of 8/20 marbles per color, blue/red/both starts and 0.25/1/8 speed | Supply totals, actual actuation, collection, stable output and order passed |
+| Empty board | Both starts at eleven speeds (22 runs) | No lost or unactuated output marbles |
+| Center approaches | 306 physical and 68 schematic cases | Single actuation, divider passage and settled collection |
+| Blade and outer-end impacts | 102 blade cases and 60 outward-velocity cases | No missed actuation, stranded marbles or escapes |
+| Release isolation | In flight, intercepted, below arms, missing levers, return/reset | No continuation without lower-lever actuation |
+| Rigid motion/reset | 606 poses and 24 same-size resets on three boards | Downward rigid travel, counterweight clearance, no old supply overlays and working next release |
+| Supply/controls | Both modes and colors, 8/20 counts, busy protection, pause/return/reset, start hover | Passed |
 | Output register | 88 forty-marble pattern cases across both modes and eleven speeds | Exact identities/order, spacing, idle stability and silent return |
-| Controls | Three sizes, zoom, pause, return and reset; delayed Press to Start hover | Passed |
-| Other components | Ramps, crossover, bit, gear-bit trains, interceptor and eraser/add-marble controls | Passed |
-| Release isolation | In flight, intercepted, below the levers, absent levers and return/reset | No automatic continuation without lever actuation |
-| Build/assets | TypeScript 2.7.2, hosted JS syntax and matching source/hosted assets | Passed |
+| Other components and build | Ramps, crossover, bits/gear-bit trains, interceptor, eraser/add marbles, TypeScript 2.7.2 and JS syntax | Passed |
 
-## Playable ramps preserved
+## Preserved behavior
 
-src/parts/ramp.ts, src/parts/partvertices.ts and src/board/constants.ts match the
-preceding rigid-lever release byte-for-byte. Shared PartBody code was also not
-changed by this correction. Playable ramp collision shapes, counterweights,
-friction, density, contact assistance and traversal speed remain unchanged.
-Changes are limited to the lower inlet collision filtering, fixed block profile,
-lower lever clearance/return timing, related drawing and schematic handling.
+src/parts/ramp.ts, src/parts/partvertices.ts, src/board/constants.ts,
+src/parts/partbody.ts, src/parts/turnstile.ts and src/board/centerblock.ts match
+the preceding solid-slope release byte-for-byte. No playable ramp/counterweight,
+lever shape, center-block clearance or collision-category setting was tuned.
+The wider center block still has approximately 1.23 units of resting gap at each
+tip and 23.21 units of exit clearance for a 20-unit marble when depressed.
+
+New shared helper: src/board/rail.ts. Source, compiled hosting bundle and current
+release notes are included in the update.
 
 Compiled docs/app.js SHA-256:
-b62cbb5da2d89ee678ef01f352f386e5d9447cc3133b4b5eca48b672735c53eb
+ed131b2503d74aae3ba41006a789e2a450d10b41acb580053ea2773476878d34
 
 ## Live checks after upload
 
-1. Guide a marble toward several points on each lower white slope. It should
-   land on the slope and roll inward to the exposed black receiving area.
-2. Check that both resting lever tips nearly touch the wider white center block.
-3. Watch a complete stroke: rigid downward movement, one linked top release,
-   clear passage to the output ramps, then return and reload.
-4. Pause while the lever is down, then resume. Reset all several times and check
-   that only the preferred supply rails appear.
-5. Run a forty-marble output and verify its final order. Review classroom screen
-   fitting, hover controls and any intended touch devices.
+1. Release blue and red marbles: each should stay above the upper feed line,
+   roll to its end and continue into the board smoothly.
+2. Watch a marble reach each lower white slope: it should land and roll inward
+   at approximately the same visible pace as the upper feed.
+3. Try slow/normal/fast, pause on each rail, then resume and Return marbles.
+4. Reset several times, then run a forty-marble sequence and verify its order.
+5. Check the classroom display and any intended touch devices.
 
-The verified output capacity is forty total marbles on standard board layouts.
-Advanced custom mechanisms, live resizing mid-stroke and larger capacities remain
-outside this guarantee. The serializer format, README, license and third-party
-notices are preserved. No code has been pushed or published.
+The verified output capacity remains forty total marbles on standard layouts.
+Advanced custom mechanisms, live resizing during travel and larger capacities
+are outside this guarantee. README, license and dependency notices are preserved.
+No code has been pushed or published on your behalf.

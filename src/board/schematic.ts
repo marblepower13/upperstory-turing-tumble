@@ -9,7 +9,9 @@ import { PART_SIZE, BALL_RADIUS, SPACING } from './constants';
 import { Slope, Side } from 'parts/fence';
 import { GearBase } from 'parts/gearbit';
 import { Turnstile, LEVER_REST_ANGLE, LEVER_PIVOT_OFFSET, LEVER_TIP } from 'parts/turnstile';
-import { centerBlocks, centerBlockHalfWidth } from './centerblock';
+import { centerBlocks, centerBlockHalfWidth, LeverInlet, leverInlets } from './centerblock';
+
+import { RAIL_ROLL_SPEED, railFrame, railPoint } from './rail';
 
 type RouteMethod = (part:Part, ball:Ball) => boolean;
 
@@ -33,11 +35,13 @@ export class SchematicBallRouter implements IBallRouter {
     this.balls = this.board.balls;
   }
   public balls:Set<Ball>;
+  private _inlets:LeverInlet[] = [];
 
   public onBoardSizeChanged() { }
 
   public update(speed:number, correction:number):void {
     this.board.supplyGuide.sync();
+    this._inlets=leverInlets(this.board);
     const iterations:number = Math.ceil(speed * 8);
     for (let i:number = 0; i < iterations; i++) {
       for(const drop of this.board.drops)for(const lever of drop.turnstiles)lever.advancePulse(0.25);
@@ -88,14 +92,32 @@ export class SchematicBallRouter implements IBallRouter {
     }
   }
 
+  private routeLeverInlet(ball:Ball):boolean {
+    for(const inlet of this._inlets){
+      const frame=railFrame(inlet.start,inlet.end),dx=ball.column*SPACING-frame.start.x,dy=ball.row*SPACING-frame.start.y;
+      const along=dx*frame.tangent.x+dy*frame.tangent.y,above=dx*frame.normal.x+dy*frame.normal.y;
+      const clearance=BALL_RADIUS+0.075*SPACING/2+0.5;
+      if(along<0||along>frame.length-5||above>clearance+STEP*SPACING||above< -BALL_RADIUS)continue;
+      const p=railPoint(frame,along,clearance);
+      ball.column=p.x/SPACING;ball.row=p.y/SPACING;
+      // A schematic iteration is one quarter of a physical simulation step.
+      ball.vx=frame.tangent.x*RAIL_ROLL_SPEED*0.25/SPACING;
+      ball.vy=frame.tangent.y*RAIL_ROLL_SPEED*0.25/SPACING;
+      return true;
+    }
+    return false;
+  }
+
   protected routeBall(ball:Ball):boolean {
     let part:Part;
     let method:RouteMethod;
     if(this.board.outputRegister.active && ball.row >= (centerBlocks(this.board)[0].row+1)) {
       this.routeFreefall(ball);return true;
     }
+    this.board.supplyGuide.takeExitVelocity(ball);
     // confine the ball on the sides
     this.checkSides(ball);
+    if(this.routeLeverInlet(ball))return true;
     // The fixed post guides a center marble over its shoulder and onto
     // an adjacent blade. The post itself never advances the machine.
     for (const block of centerBlocks(this.board)) {

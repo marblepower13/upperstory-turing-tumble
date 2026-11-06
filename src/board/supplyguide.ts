@@ -7,6 +7,7 @@ import { Turnstile } from 'parts/turnstile';
 import { PartType } from 'parts/factory';
 import { SPACING, BALL_RADIUS } from './constants';
 import { Renderer } from 'renderer';
+import { RAIL_ROLL_SPEED, RailPoint, railFrame, railPoint } from './rail';
 type Point = {c:number,r:number};
 type Trip = {drop:Drop,ball:Ball,path:Point[],lengths:number[],distance:number};
 type Stroke = {lever:Turnstile,ball:Ball,progress:number,returning:boolean,discharged:boolean};
@@ -24,6 +25,7 @@ export class SupplyGuide {
   private strokes:Map<Drop,Stroke> = new Map();
   private feed:Map<Drop,number> = new Map();
   private complete:WeakSet<Ball> = new WeakSet();
+  private exitVelocities:Map<Ball,RailPoint> = new Map();
   private signature:string = '';
   private drawing:string = '';
   private overrides:Map<Drop,(lever?:Turnstile)=>boolean> = new Map();
@@ -51,6 +53,15 @@ export class SupplyGuide {
     const p=this.disc(drop),a=progress*Math.PI/2,sign=drop.isFlipped?-1:1;
     return {c:p.c+sign*CUP*Math.cos(a),r:p.r+CUP*Math.sin(a)};
   }
+  // The drawing and marble-center path share these exact rail endpoints.
+  public feedRail(drop:Drop):{start:RailPoint,end:RailPoint} {
+    const p=this.disc(drop),sign=drop.isFlipped?-1:1;
+    return {start:{x:p.c*SPACING,y:(drop.row+0.12)*SPACING},
+      end:{x:(drop.column+sign*0.7)*SPACING,y:(drop.row+0.5)*SPACING}};
+  }
+  public takeExitVelocity(ball:Ball):RailPoint {
+    const velocity=this.exitVelocities.get(ball);this.exitVelocities.delete(ball);return velocity;
+  }
   public buttonAt(c:number,r:number):Drop {
     this.sync();
     for(const drop of this.supplies){const p=this.disc(drop);
@@ -70,12 +81,12 @@ export class SupplyGuide {
       (part.type===PartType.SLOPE||part.type===PartType.SIDE);
   }
   public remove(ball:Ball):void {
-    this.trips.delete(ball);this.complete.delete(ball);
+    this.trips.delete(ball);this.complete.delete(ball);this.exitVelocities.delete(ball);
     for(const stroke of this.strokes.values())if(stroke.ball===ball)stroke.ball=null;
     for(const [drop,balls] of this.parked)this.parked.set(drop,balls.filter(b=>b!==ball));
   }
   public clear():void {
-    this.parked.clear();this.trips.clear();this.strokes.clear();this.feed.clear();this.complete=new WeakSet();this.drawing='';
+    this.parked.clear();this.trips.clear();this.strokes.clear();this.feed.clear();this.exitVelocities.clear();this.complete=new WeakSet();this.drawing='';
   }
   public sync():void {
     const eligible:Drop[]=[];
@@ -118,9 +129,15 @@ export class SupplyGuide {
   }
   private discharge(drop:Drop,stroke:Stroke):void {
     const ball=stroke.ball;if(!ball||!this.board.balls.has(ball)){stroke.discharged=true;return;}
-    const p=this.disc(drop),sign=drop.isFlipped?-1:1;
-    const path=[{c:ball.column,r:ball.row},{c:p.c+sign*0.20,r:p.r+0.66},
-      {c:drop.column+sign*0.65,r:drop.row+0.35}];
+    const rail=this.feedRail(drop),frame=railFrame(rail.start,rail.end);
+    const clearance=BALL_RADIUS+0.085*SPACING/2+0.5;
+    const along=Math.max(0,Math.min(frame.length,
+      (ball.column*SPACING-frame.start.x)*frame.tangent.x+(ball.row*SPACING-frame.start.y)*frame.tangent.y));
+    const landing=railPoint(frame,along,clearance),end=railPoint(frame,frame.length,clearance);
+    // Roll over the rail's end before handing the marble back to free physics.
+    const exit={x:end.x+frame.tangent.x*BALL_RADIUS,y:end.y+frame.tangent.y*BALL_RADIUS+1.5};
+    const path:Point[]=[{c:ball.column,r:ball.row}];
+    for(const point of [landing,end,exit])path.push({c:point.x/SPACING,r:point.y/SPACING});
     const lengths=[0];
     for(let i=1;i<path.length;i++)lengths.push(lengths[i-1]+Math.sqrt(Math.pow(path[i].c-path[i-1].c,2)+Math.pow(path[i].r-path[i-1].r,2))*SPACING);
     this.trips.set(ball,{drop:drop,ball:ball,path:path,lengths:lengths,distance:0});stroke.discharged=true;
@@ -149,7 +166,7 @@ export class SupplyGuide {
     for(const [ball,trip] of Array.from(this.trips.entries())){
       if(!this.board.balls.has(ball)){this.trips.delete(ball);continue;}
       const last=trip.lengths[trip.lengths.length-1];
-      let next=trip.distance+3*steps;
+      let next=trip.distance+RAIL_ROLL_SPEED*steps;
       if(ahead.has(trip.drop))next=Math.min(next,last-ahead.get(trip.drop)-PITCH*SPACING);
       trip.distance=Math.max(trip.distance,Math.min(last,next));ahead.set(trip.drop,last-trip.distance);
       let p=trip.path[trip.path.length-1];
@@ -158,7 +175,12 @@ export class SupplyGuide {
         p={c:trip.path[i-1].c+(trip.path[i].c-trip.path[i-1].c)*t,r:trip.path[i-1].r+(trip.path[i].r-trip.path[i-1].r)*t};break;
       }
       this.board.layoutPart(ball,p.c,p.r);ball.vx=ball.vy=0;Renderer.needsUpdate();
-      if(trip.distance>=last){this.trips.delete(ball);this.complete.add(ball);ball.released=true;}
+      if(trip.distance>=last){
+        const previous=trip.path[trip.path.length-2],end=trip.path[trip.path.length-1];
+        const dx=end.c-previous.c,dy=end.r-previous.r,length=Math.sqrt(dx*dx+dy*dy);
+        this.exitVelocities.set(ball,{x:RAIL_ROLL_SPEED*dx/length,y:RAIL_ROLL_SPEED*dy/length});
+        this.trips.delete(ball);this.complete.add(ball);ball.released=true;
+      }
     }
     this.sync();this.draw();
   }
@@ -173,8 +195,9 @@ export class SupplyGuide {
     const center=(this.board.columnCount-1)/2;
     for(const drop of this.supplies){
       const p=this.disc(drop),sign=drop.isFlipped?-1:1,x=this.board.xForColumn(p.c),y=this.board.yForRow(p.r),a=this.progress(drop)*Math.PI/2;
+      const feed=this.feedRail(drop);
       for(const path of [[{c:center,r:drop.row-0.78},{c:p.c+sign*0.43,r:p.r+0.14}],
-        [{c:p.c,r:drop.row+0.12},{c:drop.column+sign*0.7,r:drop.row+0.5}],
+        [{c:feed.start.x/SPACING,r:feed.start.y/SPACING},{c:feed.end.x/SPACING,r:feed.end.y/SPACING}],
         [{c:center,r:drop.row-1.21},{c:p.c,r:drop.row-0.92}]]){
         stroke(path,0.085,0xb7bec1);stroke(path,0.045,0xfafaf8);
       }

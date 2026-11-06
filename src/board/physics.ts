@@ -15,7 +15,8 @@ import { SPACING, PART_CATEGORY, PART_MASK } from './constants';
 import { Animator } from 'ui/animator';
 import { PartType } from 'parts/factory';
 import { Turnstile } from 'parts/turnstile';
-import { centerBlocks, CENTER_BLOCK_COLLIDERS, leverInlets, inletCollider, isLeverInletPart } from './centerblock';
+import { RAIL_ROLL_SPEED, railFrame } from './rail';
+import { centerBlocks, CENTER_BLOCK_COLLIDERS, LeverInlet, leverInlets, inletCollider, isLeverInletPart } from './centerblock';
 
 export type PartBallContact = {
   ballPartBody: PartBody,
@@ -94,6 +95,7 @@ export class PhysicalBallRouter implements IBallRouter {
   private _boardChangeCounter:number = -1;
   private _centerBlockBodies:Body[] = [];
   private _inletBodies:Body[] = [];
+  private _inletRails:Map<Body,LeverInlet> = new Map();
   private _centerBlockSignature:string = '';
   private _syncCenterBlocks():boolean {
     const blocks = centerBlocks(this.board);
@@ -104,7 +106,7 @@ export class PhysicalBallRouter implements IBallRouter {
     for (const body of this._centerBlockBodies) World.remove(this.engine.world, body);
     this._centerBlockBodies = [];
     for (const body of this._inletBodies) World.remove(this.engine.world, body);
-    this._inletBodies = [];
+    this._inletBodies = [];this._inletRails.clear();
     for (const block of blocks) {
       const parts=CENTER_BLOCK_COLLIDERS.map(shape=>{
         const vertices=shape.map(v=>({x:block.column*SPACING+v.x,y:block.row*SPACING+v.y}));
@@ -120,7 +122,7 @@ export class PhysicalBallRouter implements IBallRouter {
       const body=Body.create({vertices:points,position:Vertices.centre(points),isStatic:true,
         label:'Continuous lever inlet',friction:0.02,restitution:0.02,
         collisionFilter:{category:PART_CATEGORY,mask:PART_MASK,group:0}});
-      this._inletBodies.push(body);World.add(this.engine.world,body);
+      this._inletBodies.push(body);this._inletRails.set(body,inlet);World.add(this.engine.world,body);
     }
     return true;
   }
@@ -147,6 +149,24 @@ export class PhysicalBallRouter implements IBallRouter {
   }
 
 
+  private _rollInletContacts():void {
+    const handled:Set<Ball>=new Set();
+    for(const pair of this.engine.pairs.collisionStart.concat(this.engine.pairs.collisionActive)){
+      const a=pair.bodyA.parent||pair.bodyA,b=pair.bodyB.parent||pair.bodyB;
+      const rail=this._inletRails.get(a)||this._inletRails.get(b);if(!rail)continue;
+      const partBody=this._findPartBody(this._inletRails.has(a)?pair.bodyB:pair.bodyA);
+      if(!partBody||!(partBody.part instanceof Ball)||handled.has(partBody.part as Ball))continue;
+      const frame=railFrame(rail.start,rail.end),position=partBody.body.position;
+      const x=position.x-frame.start.x,y=position.y-frame.start.y;
+      const along=x*frame.tangent.x+y*frame.tangent.y,above=x*frame.normal.x+y*frame.normal.y;
+      // Only the upper contact face rolls; free fall, undersides and levers
+      // retain their existing behavior. Stop before handing off to the heel.
+      if(above<=0||along<0||along>frame.length-5)continue;
+      Body.setVelocity(partBody.body,{x:frame.tangent.x*RAIL_ROLL_SPEED,y:frame.tangent.y*RAIL_ROLL_SPEED});
+      handled.add(partBody.part as Ball);
+    }
+  }
+
   public afterUpdate():void {
     this._deflectCenterContacts();
     // determine the set of balls touching each part
@@ -156,6 +176,7 @@ export class PhysicalBallRouter implements IBallRouter {
     for (const partBody of this._parts.values()) {
       partBody.cheat(contacts.get(partBody), nearby.get(partBody));
     }
+    this._rollInletContacts();
     // transfer part positions
     for (const [ part, partBody ] of this._parts.entries()) {
       partBody.updatePartFromBody();
@@ -406,6 +427,10 @@ export class PhysicalBallRouter implements IBallRouter {
     this._parts.set(part, partBody);
     partBody.updateBodyFromPart();
     partBody.addToWorld(this.engine.world);
+    if(part instanceof Ball&&partBody.body){
+      const velocity=this.board.supplyGuide.takeExitVelocity(part);
+      if(velocity)Body.setVelocity(partBody.body,velocity);
+    }
     if (partBody.body) this._bodies.set(partBody.body, partBody);
   }
   protected removePart(part:Part):void {

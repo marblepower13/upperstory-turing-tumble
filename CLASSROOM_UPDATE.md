@@ -3,6 +3,31 @@
 This package updates the existing marblepower13/upperstory-turing-tumble repository.
 It is an update package, not a complete standalone checkout.
 
+## Upper feed alignment and matched slope pace - November 6, 2026
+
+- The upper feed's visible rail and moving marble path now share the same rail
+  endpoints. The marble center is offset upward by its radius plus the rail
+  stroke width, so marbles ride above the visible line rather than below it.
+- Marbles follow the supported rail to its end, pass through a short roll-off
+  segment, then enter free physics with their outgoing motion preserved.
+- Upper feeds and lower inlet slopes share a nominal rolling pace of three
+  model units per physical simulation step. On real lower-rail contact the
+  engine applies this pace along the slope. Free fall and lever contacts keep
+  their existing behavior. Schematic slopes use the same scaled pace.
+- Existing Faster/Slower settings scale both paths together. Pause freezes
+  travel, and Return marbles/Reset all clear any pending outlet motion.
+- The lower slopes remain solid to both marble states. The close-fitting center
+  block, rigid levers and their clearance/hold behavior remain as approved.
+- Playable ramps and their counterweights/physics parameters were not changed.
+  Current verification is in PHYSICS_TEST_RESULTS.md.
+
+Upload the contents of upperstory-turing-tumble-update to matching paths in the
+existing repository. The new src/board/rail.ts file is included along with the
+compiled docs/app.js. Continue publishing master's /docs folder. README.md,
+LICENSE and third-party notices are preserved. No remote files were changed.
+
+## Earlier releases
+
 ## Solid lower slopes and tighter center block - November 5, 2026
 
 - Corrected the lower white slopes' collision filtering so they support marbles

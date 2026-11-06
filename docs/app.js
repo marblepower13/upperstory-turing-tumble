@@ -2147,9 +2147,34 @@ System.register("parts/partbody", ["matter-js", "parts/factory", "parts/partvert
         }
     };
 });
-System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/constants"], function (exports_22, context_22) {
+System.register("board/rail", [], function (exports_22, context_22) {
     "use strict";
     var __moduleName = context_22 && context_22.id;
+    function railFrame(start, end) {
+        const dx = end.x - start.x, dy = end.y - start.y, length = Math.sqrt(dx * dx + dy * dy);
+        const tangent = { x: dx / length, y: dy / length }, sign = dx < 0 ? -1 : 1;
+        return { start: start, end: end, length: length, tangent: tangent,
+            normal: { x: sign * tangent.y, y: -sign * tangent.x } };
+    }
+    exports_22("railFrame", railFrame);
+    function railPoint(frame, distance, clearance) {
+        return { x: frame.start.x + frame.tangent.x * distance + frame.normal.x * clearance,
+            y: frame.start.y + frame.tangent.y * distance + frame.normal.y * clearance };
+    }
+    exports_22("railPoint", railPoint);
+    var RAIL_ROLL_SPEED;
+    return {
+        setters: [],
+        execute: function () {
+            // Canonical model units per physical simulation step. Both upper feeds and
+            // lower collection slopes use this pace, scaled by the existing playback rate.
+            exports_22("RAIL_ROLL_SPEED", RAIL_ROLL_SPEED = 3);
+        }
+    };
+});
+System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/constants"], function (exports_23, context_23) {
+    "use strict";
+    var __moduleName = context_23 && context_23.id;
     // Match schematic deflection to the same widened cap and tapered stem.
     function centerBlockHalfWidth(rowOffset) {
         const r = Math.max(-0.70, Math.min(0.45, rowOffset));
@@ -2161,7 +2186,7 @@ System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/c
             return 0.415 + (0.10 - 0.415) * (r + 0.10) / 0.25;
         return 0.10 + (0.08 - 0.10) * (r - 0.15) / 0.30;
     }
-    exports_22("centerBlockHalfWidth", centerBlockHalfWidth);
+    exports_23("centerBlockHalfWidth", centerBlockHalfWidth);
     // Derive fixed dividers from the actual paired bottom levers. This also makes
     // older saved boards acquire the divider without changing their file format.
     function centerBlocks(board) {
@@ -2180,7 +2205,7 @@ System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/c
             }
         return blocks;
     }
-    exports_22("centerBlocks", centerBlocks);
+    exports_23("centerBlocks", centerBlocks);
     // Replace the last continuous slope run with one uninterrupted rail ending at
     // the wide lever heel. Endpoints are derived from the rigid lever at rest.
     function leverInlets(board) {
@@ -2208,12 +2233,12 @@ System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/c
             }
         return result;
     }
-    exports_22("leverInlets", leverInlets);
+    exports_23("leverInlets", leverInlets);
     function isLeverInletPart(board, part) {
         return !!part && part instanceof fence_3.Slope && part.isLocked &&
             leverInlets(board).some(inlet => inlet.parts.indexOf(part) >= 0);
     }
-    exports_22("isLeverInletPart", isLeverInletPart);
+    exports_23("isLeverInletPart", isLeverInletPart);
     function inletCollider(inlet) {
         // Solid backing below the thin visible edge catches fast incoming marbles.
         // It shares the same upper face and never forms an extra visible box.
@@ -2221,7 +2246,7 @@ System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/c
         return [{ x: a.x, y: a.y - 0.035 * constants_3.SPACING }, { x: b.x, y: b.y - 0.035 * constants_3.SPACING },
             { x: b.x, y: b.y + t }, { x: a.x, y: a.y + t }];
     }
-    exports_22("inletCollider", inletCollider);
+    exports_23("inletCollider", inletCollider);
     var fence_3, turnstile_3, constants_3, CENTER_BLOCK_VERTICES, CENTER_BLOCK_COLLIDERS;
     return {
         setters: [
@@ -2238,7 +2263,7 @@ System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/c
         execute: function () {
             // Shared by the drawing, rigid-body collider and schematic routing. No feet
             // extend into either lever's sweep or the falling-marble exit path.
-            exports_22("CENTER_BLOCK_VERTICES", CENTER_BLOCK_VERTICES = [
+            exports_23("CENTER_BLOCK_VERTICES", CENTER_BLOCK_VERTICES = [
                 { x: 0, y: -0.70 * constants_3.SPACING },
                 { x: 0.415 * constants_3.SPACING, y: -0.50 * constants_3.SPACING },
                 { x: 0.415 * constants_3.SPACING, y: -0.10 * constants_3.SPACING },
@@ -2251,17 +2276,17 @@ System.register("board/centerblock", ["parts/fence", "parts/turnstile", "board/c
             ]);
             // Convex pieces exactly cover the widened cap and tapered stem. Passing a
             // concave outline directly to Matter's SAT would incorrectly obstruct the exit.
-            exports_22("CENTER_BLOCK_COLLIDERS", CENTER_BLOCK_COLLIDERS = [
+            exports_23("CENTER_BLOCK_COLLIDERS", CENTER_BLOCK_COLLIDERS = [
                 [0, 1, 2, 3, 6, 7, 8].map(i => CENTER_BLOCK_VERTICES[i]),
                 [3, 4, 5, 6].map(i => CENTER_BLOCK_VERTICES[i])
             ]);
         }
     };
 });
-System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/ball", "parts/gearbit", "parts/partbody", "board/constants", "ui/animator", "parts/turnstile", "board/centerblock"], function (exports_23, context_23) {
+System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/ball", "parts/gearbit", "parts/partbody", "board/constants", "ui/animator", "parts/turnstile", "board/rail", "board/centerblock"], function (exports_24, context_24) {
     "use strict";
-    var __moduleName = context_23 && context_23.id;
-    var PIXI, matter_js_2, renderer_4, ball_4, gearbit_2, partbody_1, constants_4, animator_3, turnstile_4, centerblock_1, PhysicalBallRouter;
+    var __moduleName = context_24 && context_24.id;
+    var PIXI, matter_js_2, renderer_4, ball_4, gearbit_2, partbody_1, constants_4, animator_3, turnstile_4, rail_1, centerblock_1, PhysicalBallRouter;
     return {
         setters: [
             function (PIXI_4) {
@@ -2291,6 +2316,9 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
             function (turnstile_4_1) {
                 turnstile_4 = turnstile_4_1;
             },
+            function (rail_1_1) {
+                rail_1 = rail_1_1;
+            },
             function (centerblock_1_1) {
                 centerblock_1 = centerblock_1_1;
             }
@@ -2304,6 +2332,7 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                     this._boardChangeCounter = -1;
                     this._centerBlockBodies = [];
                     this._inletBodies = [];
+                    this._inletRails = new Map();
                     this._centerBlockSignature = '';
                     this._wallWidth = 16;
                     this._wallHeight = 16;
@@ -2380,6 +2409,7 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                     for (const body of this._inletBodies)
                         matter_js_2.World.remove(this.engine.world, body);
                     this._inletBodies = [];
+                    this._inletRails.clear();
                     for (const block of blocks) {
                         const parts = centerblock_1.CENTER_BLOCK_COLLIDERS.map(shape => {
                             const vertices = shape.map(v => ({ x: block.column * constants_4.SPACING + v.x, y: block.row * constants_4.SPACING + v.y }));
@@ -2396,6 +2426,7 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                             label: 'Continuous lever inlet', friction: 0.02, restitution: 0.02,
                             collisionFilter: { category: constants_4.PART_CATEGORY, mask: constants_4.PART_MASK, group: 0 } });
                         this._inletBodies.push(body);
+                        this._inletRails.set(body, inlet);
                         matter_js_2.World.add(this.engine.world, body);
                     }
                     return true;
@@ -2423,6 +2454,27 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                         matter_js_2.Body.setVelocity(body, { x: sign * 0.6, y: body.velocity.y });
                     }
                 }
+                _rollInletContacts() {
+                    const handled = new Set();
+                    for (const pair of this.engine.pairs.collisionStart.concat(this.engine.pairs.collisionActive)) {
+                        const a = pair.bodyA.parent || pair.bodyA, b = pair.bodyB.parent || pair.bodyB;
+                        const rail = this._inletRails.get(a) || this._inletRails.get(b);
+                        if (!rail)
+                            continue;
+                        const partBody = this._findPartBody(this._inletRails.has(a) ? pair.bodyB : pair.bodyA);
+                        if (!partBody || !(partBody.part instanceof ball_4.Ball) || handled.has(partBody.part))
+                            continue;
+                        const frame = rail_1.railFrame(rail.start, rail.end), position = partBody.body.position;
+                        const x = position.x - frame.start.x, y = position.y - frame.start.y;
+                        const along = x * frame.tangent.x + y * frame.tangent.y, above = x * frame.normal.x + y * frame.normal.y;
+                        // Only the upper contact face rolls; free fall, undersides and levers
+                        // retain their existing behavior. Stop before handing off to the heel.
+                        if (above <= 0 || along < 0 || along > frame.length - 5)
+                            continue;
+                        matter_js_2.Body.setVelocity(partBody.body, { x: frame.tangent.x * rail_1.RAIL_ROLL_SPEED, y: frame.tangent.y * rail_1.RAIL_ROLL_SPEED });
+                        handled.add(partBody.part);
+                    }
+                }
                 afterUpdate() {
                     this._deflectCenterContacts();
                     // determine the set of balls touching each part
@@ -2432,6 +2484,7 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                     for (const partBody of this._parts.values()) {
                         partBody.cheat(contacts.get(partBody), nearby.get(partBody));
                     }
+                    this._rollInletContacts();
                     // transfer part positions
                     for (const [part, partBody] of this._parts.entries()) {
                         partBody.updatePartFromBody();
@@ -2688,6 +2741,11 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                     this._parts.set(part, partBody);
                     partBody.updateBodyFromPart();
                     partBody.addToWorld(this.engine.world);
+                    if (part instanceof ball_4.Ball && partBody.body) {
+                        const velocity = this.board.supplyGuide.takeExitVelocity(part);
+                        if (velocity)
+                            matter_js_2.Body.setVelocity(partBody.body, velocity);
+                    }
                     if (partBody.body)
                         this._bodies.set(partBody.body, partBody);
                 }
@@ -2808,14 +2866,14 @@ System.register("board/physics", ["pixi.js", "matter-js", "renderer", "parts/bal
                     }
                 }
             };
-            exports_23("PhysicalBallRouter", PhysicalBallRouter);
+            exports_24("PhysicalBallRouter", PhysicalBallRouter);
         }
     };
 });
-System.register("board/schematic", ["matter-js", "board/constants", "parts/fence", "parts/gearbit", "parts/turnstile", "board/centerblock"], function (exports_24, context_24) {
+System.register("board/schematic", ["matter-js", "board/constants", "parts/fence", "parts/gearbit", "parts/turnstile", "board/centerblock", "board/rail"], function (exports_25, context_25) {
     "use strict";
-    var __moduleName = context_24 && context_24.id;
-    var matter_js_3, constants_5, fence_4, gearbit_3, turnstile_5, centerblock_2, RAD, DIAM, DIAM_2, FENCE, STEP, EXIT, SchematicBallRouter;
+    var __moduleName = context_25 && context_25.id;
+    var matter_js_3, constants_5, fence_4, gearbit_3, turnstile_5, centerblock_2, rail_2, RAD, DIAM, DIAM_2, FENCE, STEP, EXIT, SchematicBallRouter;
     return {
         setters: [
             function (matter_js_3_1) {
@@ -2835,6 +2893,9 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
             },
             function (centerblock_2_1) {
                 centerblock_2 = centerblock_2_1;
+            },
+            function (rail_2_1) {
+                rail_2 = rail_2_1;
             }
         ],
         execute: function () {
@@ -2853,6 +2914,7 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
             SchematicBallRouter = class SchematicBallRouter {
                 constructor(board) {
                     this.board = board;
+                    this._inlets = [];
                     this._initialBitValue = new WeakMap();
                     this._postApproaches = new WeakMap();
                     this._passedLevers = new WeakMap();
@@ -2861,6 +2923,7 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                 onBoardSizeChanged() { }
                 update(speed, correction) {
                     this.board.supplyGuide.sync();
+                    this._inlets = centerblock_2.leverInlets(this.board);
                     const iterations = Math.ceil(speed * 8);
                     for (let i = 0; i < iterations; i++) {
                         for (const drop of this.board.drops)
@@ -2914,6 +2977,23 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                         }
                     }
                 }
+                routeLeverInlet(ball) {
+                    for (const inlet of this._inlets) {
+                        const frame = rail_2.railFrame(inlet.start, inlet.end), dx = ball.column * constants_5.SPACING - frame.start.x, dy = ball.row * constants_5.SPACING - frame.start.y;
+                        const along = dx * frame.tangent.x + dy * frame.tangent.y, above = dx * frame.normal.x + dy * frame.normal.y;
+                        const clearance = constants_5.BALL_RADIUS + 0.075 * constants_5.SPACING / 2 + 0.5;
+                        if (along < 0 || along > frame.length - 5 || above > clearance + STEP * constants_5.SPACING || above < -constants_5.BALL_RADIUS)
+                            continue;
+                        const p = rail_2.railPoint(frame, along, clearance);
+                        ball.column = p.x / constants_5.SPACING;
+                        ball.row = p.y / constants_5.SPACING;
+                        // A schematic iteration is one quarter of a physical simulation step.
+                        ball.vx = frame.tangent.x * rail_2.RAIL_ROLL_SPEED * 0.25 / constants_5.SPACING;
+                        ball.vy = frame.tangent.y * rail_2.RAIL_ROLL_SPEED * 0.25 / constants_5.SPACING;
+                        return true;
+                    }
+                    return false;
+                }
                 routeBall(ball) {
                     let part;
                     let method;
@@ -2921,8 +3001,11 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                         this.routeFreefall(ball);
                         return true;
                     }
+                    this.board.supplyGuide.takeExitVelocity(ball);
                     // confine the ball on the sides
                     this.checkSides(ball);
+                    if (this.routeLeverInlet(ball))
+                        return true;
                     // The fixed post guides a center marble over its shoulder and onto
                     // an adjacent blade. The post itself never advances the machine.
                     for (const block of centerblock_2.centerBlocks(this.board)) {
@@ -3227,13 +3310,13 @@ System.register("board/schematic", ["matter-js", "board/constants", "parts/fence
                     }
                 }
             };
-            exports_24("SchematicBallRouter", SchematicBallRouter);
+            exports_25("SchematicBallRouter", SchematicBallRouter);
         }
     };
 });
-System.register("board/serializer", ["parts/drop"], function (exports_25, context_25) {
+System.register("board/serializer", ["parts/drop"], function (exports_26, context_26) {
     "use strict";
-    var __moduleName = context_25 && context_25.id;
+    var __moduleName = context_26 && context_26.id;
     var drop_3, URLBoardSerializer;
     return {
         setters: [
@@ -3720,13 +3803,13 @@ System.register("board/serializer", ["parts/drop"], function (exports_25, contex
                     return (s);
                 }
             };
-            exports_25("URLBoardSerializer", URLBoardSerializer);
+            exports_26("URLBoardSerializer", URLBoardSerializer);
         }
     };
 });
-System.register("board/controls", ["pixi.js", "renderer", "ui/config"], function (exports_26, context_26) {
+System.register("board/controls", ["pixi.js", "renderer", "ui/config"], function (exports_27, context_27) {
     "use strict";
-    var __moduleName = context_26 && context_26.id;
+    var __moduleName = context_27 && context_27.id;
     var PIXI, renderer_5, config_2, ColorWheel, SpriteWithSize, DropButton, TurnButton, BallCounter;
     return {
         setters: [
@@ -3779,7 +3862,7 @@ System.register("board/controls", ["pixi.js", "renderer", "ui/config"], function
                     renderer_5.Renderer.needsUpdate();
                 }
             };
-            exports_26("ColorWheel", ColorWheel);
+            exports_27("ColorWheel", ColorWheel);
             SpriteWithSize = class SpriteWithSize extends PIXI.Sprite {
                 // the size of the control
                 get size() { return (this.width); }
@@ -3805,7 +3888,7 @@ System.register("board/controls", ["pixi.js", "renderer", "ui/config"], function
                     this.anchor.set(0.5, 0.5);
                 }
             };
-            exports_26("DropButton", DropButton);
+            exports_27("DropButton", DropButton);
             TurnButton = class TurnButton extends SpriteWithSize {
                 constructor(textures) {
                     super(textures['TurnButton-f']);
@@ -3813,7 +3896,7 @@ System.register("board/controls", ["pixi.js", "renderer", "ui/config"], function
                     this.anchor.set(0.5, 0.5);
                 }
             };
-            exports_26("TurnButton", TurnButton);
+            exports_27("TurnButton", TurnButton);
             BallCounter = class BallCounter extends PIXI.Sprite {
                 constructor() {
                     super();
@@ -3841,14 +3924,14 @@ System.register("board/controls", ["pixi.js", "renderer", "ui/config"], function
                         renderer_5.Renderer.needsUpdate();
                 }
             };
-            exports_26("BallCounter", BallCounter);
+            exports_27("BallCounter", BallCounter);
         }
     };
 });
-System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants", "renderer"], function (exports_27, context_27) {
+System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants", "renderer", "board/rail"], function (exports_28, context_28) {
     "use strict";
-    var __moduleName = context_27 && context_27.id;
-    var PIXI, drop_4, constants_6, renderer_6, PITCH, CUP, RELEASE, SupplyGuide;
+    var __moduleName = context_28 && context_28.id;
+    var PIXI, drop_4, constants_6, renderer_6, rail_3, PITCH, CUP, RELEASE, SupplyGuide;
     return {
         setters: [
             function (PIXI_6) {
@@ -3862,6 +3945,9 @@ System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants"
             },
             function (renderer_6_1) {
                 renderer_6 = renderer_6_1;
+            },
+            function (rail_3_1) {
+                rail_3 = rail_3_1;
             }
         ],
         execute: function () {
@@ -3880,6 +3966,7 @@ System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants"
                     this.strokes = new Map();
                     this.feed = new Map();
                     this.complete = new WeakSet();
+                    this.exitVelocities = new Map();
                     this.signature = '';
                     this.drawing = '';
                     this.overrides = new Map();
@@ -3915,6 +4002,17 @@ System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants"
                     const p = this.disc(drop), a = progress * Math.PI / 2, sign = drop.isFlipped ? -1 : 1;
                     return { c: p.c + sign * CUP * Math.cos(a), r: p.r + CUP * Math.sin(a) };
                 }
+                // The drawing and marble-center path share these exact rail endpoints.
+                feedRail(drop) {
+                    const p = this.disc(drop), sign = drop.isFlipped ? -1 : 1;
+                    return { start: { x: p.c * constants_6.SPACING, y: (drop.row + 0.12) * constants_6.SPACING },
+                        end: { x: (drop.column + sign * 0.7) * constants_6.SPACING, y: (drop.row + 0.5) * constants_6.SPACING } };
+                }
+                takeExitVelocity(ball) {
+                    const velocity = this.exitVelocities.get(ball);
+                    this.exitVelocities.delete(ball);
+                    return velocity;
+                }
                 buttonAt(c, r) {
                     this.sync();
                     for (const drop of this.supplies) {
@@ -3944,6 +4042,7 @@ System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants"
                 remove(ball) {
                     this.trips.delete(ball);
                     this.complete.delete(ball);
+                    this.exitVelocities.delete(ball);
                     for (const stroke of this.strokes.values())
                         if (stroke.ball === ball)
                             stroke.ball = null;
@@ -3955,6 +4054,7 @@ System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants"
                     this.trips.clear();
                     this.strokes.clear();
                     this.feed.clear();
+                    this.exitVelocities.clear();
                     this.complete = new WeakSet();
                     this.drawing = '';
                 }
@@ -4027,9 +4127,15 @@ System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants"
                         stroke.discharged = true;
                         return;
                     }
-                    const p = this.disc(drop), sign = drop.isFlipped ? -1 : 1;
-                    const path = [{ c: ball.column, r: ball.row }, { c: p.c + sign * 0.20, r: p.r + 0.66 },
-                        { c: drop.column + sign * 0.65, r: drop.row + 0.35 }];
+                    const rail = this.feedRail(drop), frame = rail_3.railFrame(rail.start, rail.end);
+                    const clearance = constants_6.BALL_RADIUS + 0.085 * constants_6.SPACING / 2 + 0.5;
+                    const along = Math.max(0, Math.min(frame.length, (ball.column * constants_6.SPACING - frame.start.x) * frame.tangent.x + (ball.row * constants_6.SPACING - frame.start.y) * frame.tangent.y));
+                    const landing = rail_3.railPoint(frame, along, clearance), end = rail_3.railPoint(frame, frame.length, clearance);
+                    // Roll over the rail's end before handing the marble back to free physics.
+                    const exit = { x: end.x + frame.tangent.x * constants_6.BALL_RADIUS, y: end.y + frame.tangent.y * constants_6.BALL_RADIUS + 1.5 };
+                    const path = [{ c: ball.column, r: ball.row }];
+                    for (const point of [landing, end, exit])
+                        path.push({ c: point.x / constants_6.SPACING, r: point.y / constants_6.SPACING });
                     const lengths = [0];
                     for (let i = 1; i < path.length; i++)
                         lengths.push(lengths[i - 1] + Math.sqrt(Math.pow(path[i].c - path[i - 1].c, 2) + Math.pow(path[i].r - path[i - 1].r, 2)) * constants_6.SPACING);
@@ -4071,7 +4177,7 @@ System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants"
                             continue;
                         }
                         const last = trip.lengths[trip.lengths.length - 1];
-                        let next = trip.distance + 3 * steps;
+                        let next = trip.distance + rail_3.RAIL_ROLL_SPEED * steps;
                         if (ahead.has(trip.drop))
                             next = Math.min(next, last - ahead.get(trip.drop) - PITCH * constants_6.SPACING);
                         trip.distance = Math.max(trip.distance, Math.min(last, next));
@@ -4088,6 +4194,9 @@ System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants"
                         ball.vx = ball.vy = 0;
                         renderer_6.Renderer.needsUpdate();
                         if (trip.distance >= last) {
+                            const previous = trip.path[trip.path.length - 2], end = trip.path[trip.path.length - 1];
+                            const dx = end.c - previous.c, dy = end.r - previous.r, length = Math.sqrt(dx * dx + dy * dy);
+                            this.exitVelocities.set(ball, { x: rail_3.RAIL_ROLL_SPEED * dx / length, y: rail_3.RAIL_ROLL_SPEED * dy / length });
                             this.trips.delete(ball);
                             this.complete.add(ball);
                             ball.released = true;
@@ -4117,8 +4226,9 @@ System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants"
                     const center = (this.board.columnCount - 1) / 2;
                     for (const drop of this.supplies) {
                         const p = this.disc(drop), sign = drop.isFlipped ? -1 : 1, x = this.board.xForColumn(p.c), y = this.board.yForRow(p.r), a = this.progress(drop) * Math.PI / 2;
+                        const feed = this.feedRail(drop);
                         for (const path of [[{ c: center, r: drop.row - 0.78 }, { c: p.c + sign * 0.43, r: p.r + 0.14 }],
-                            [{ c: p.c, r: drop.row + 0.12 }, { c: drop.column + sign * 0.7, r: drop.row + 0.5 }],
+                            [{ c: feed.start.x / constants_6.SPACING, r: feed.start.y / constants_6.SPACING }, { c: feed.end.x / constants_6.SPACING, r: feed.end.y / constants_6.SPACING }],
                             [{ c: center, r: drop.row - 1.21 }, { c: p.c, r: drop.row - 0.92 }]]) {
                             stroke(path, 0.085, 0xb7bec1);
                             stroke(path, 0.045, 0xfafaf8);
@@ -4151,13 +4261,13 @@ System.register("board/supplyguide", ["pixi.js", "parts/drop", "board/constants"
                     renderer_6.Renderer.needsUpdate();
                 }
             };
-            exports_27("SupplyGuide", SupplyGuide);
+            exports_28("SupplyGuide", SupplyGuide);
         }
     };
 });
-System.register("board/outputregister", ["pixi.js", "board/constants", "board/centerblock", "renderer"], function (exports_28, context_28) {
+System.register("board/outputregister", ["pixi.js", "board/constants", "board/centerblock", "renderer"], function (exports_29, context_29) {
     "use strict";
-    var __moduleName = context_28 && context_28.id;
+    var __moduleName = context_29 && context_29.id;
     var PIXI, constants_7, centerblock_3, renderer_7, PITCH, RATE, OutputRegister;
     return {
         setters: [
@@ -4371,13 +4481,13 @@ System.register("board/outputregister", ["pixi.js", "board/constants", "board/ce
                     renderer_7.Renderer.needsUpdate();
                 }
             };
-            exports_28("OutputRegister", OutputRegister);
+            exports_29("OutputRegister", OutputRegister);
         }
     };
 });
-System.register("ui/keyboard", [], function (exports_29, context_29) {
+System.register("ui/keyboard", [], function (exports_30, context_30) {
     "use strict";
-    var __moduleName = context_29 && context_29.id;
+    var __moduleName = context_30 && context_30.id;
     function makeKeyHandler(key) {
         const handler = {
             key: key,
@@ -4407,16 +4517,16 @@ System.register("ui/keyboard", [], function (exports_29, context_29) {
         window.addEventListener('keyup', handler.upHandler.bind(handler), false);
         return (handler);
     }
-    exports_29("makeKeyHandler", makeKeyHandler);
+    exports_30("makeKeyHandler", makeKeyHandler);
     return {
         setters: [],
         execute: function () {
         }
     };
 });
-System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", "ui/config", "util/disjoint", "renderer", "parts/ball", "board/constants", "board/physics", "board/schematic", "parts/drop", "board/controls", "ui/animator", "parts/turnstile", "board/centerblock", "board/supplyguide", "board/outputregister", "ui/keyboard"], function (exports_30, context_30) {
+System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", "ui/config", "util/disjoint", "renderer", "parts/ball", "board/constants", "board/physics", "board/schematic", "parts/drop", "board/controls", "ui/animator", "parts/turnstile", "board/centerblock", "board/supplyguide", "board/outputregister", "ui/keyboard"], function (exports_31, context_31) {
     "use strict";
-    var __moduleName = context_30 && context_30.id;
+    var __moduleName = context_31 && context_31.id;
     var filter, fence_5, gearbit_4, config_3, disjoint_1, renderer_8, ball_5, constants_8, physics_1, schematic_1, drop_5, controls_1, animator_4, turnstile_6, centerblock_4, supplyguide_1, outputregister_1, keyboard_1, SPACING_FACTOR, Board;
     return {
         setters: [
@@ -4476,7 +4586,7 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
             }
         ],
         execute: function () {
-            exports_30("SPACING_FACTOR", SPACING_FACTOR = 1.0625);
+            exports_31("SPACING_FACTOR", SPACING_FACTOR = 1.0625);
             Board = class Board {
                 constructor(partFactory) {
                     this.partFactory = partFactory;
@@ -6226,13 +6336,13 @@ System.register("board/board", ["pixi-filters", "parts/fence", "parts/gearbit", 
                     }
                 }
             };
-            exports_30("Board", Board);
+            exports_31("Board", Board);
         }
     };
 });
-System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exports_31, context_31) {
+System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exports_32, context_32) {
     "use strict";
-    var __moduleName = context_31 && context_31.id;
+    var __moduleName = context_32 && context_32.id;
     var PIXI, config_4, renderer_9, Button, PartButton, SpriteButton, ButtonBar;
     return {
         setters: [
@@ -6344,7 +6454,7 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                     renderer_9.Renderer.needsUpdate();
                 }
             };
-            exports_31("Button", Button);
+            exports_32("Button", Button);
             PartButton = class PartButton extends Button {
                 constructor(part) {
                     super();
@@ -6389,7 +6499,7 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                         this.part.size = Math.floor(this.size * 0.75);
                 }
             };
-            exports_31("PartButton", PartButton);
+            exports_32("PartButton", PartButton);
             SpriteButton = class SpriteButton extends Button {
                 constructor(sprite) {
                     super();
@@ -6409,7 +6519,7 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                     }
                 }
             };
-            exports_31("SpriteButton", SpriteButton);
+            exports_32("SpriteButton", SpriteButton);
             ButtonBar = class ButtonBar extends PIXI.Container {
                 constructor() {
                     super();
@@ -6516,13 +6626,13 @@ System.register("ui/button", ["pixi.js", "ui/config", "renderer"], function (exp
                     return (m + ((w - m) * this._buttons.length));
                 }
             };
-            exports_31("ButtonBar", ButtonBar);
+            exports_32("ButtonBar", ButtonBar);
         }
     };
 });
-System.register("ui/toolbar", ["pixi.js", "ui/button", "renderer"], function (exports_32, context_32) {
+System.register("ui/toolbar", ["pixi.js", "ui/button", "renderer"], function (exports_33, context_33) {
     "use strict";
-    var __moduleName = context_32 && context_32.id;
+    var __moduleName = context_33 && context_33.id;
     var PIXI, button_1, renderer_10, Toolbar;
     return {
         setters: [
@@ -6598,13 +6708,13 @@ System.register("ui/toolbar", ["pixi.js", "ui/button", "renderer"], function (ex
                     renderer_10.Renderer.needsUpdate();
                 }
             };
-            exports_32("Toolbar", Toolbar);
+            exports_33("Toolbar", Toolbar);
         }
     };
 });
-System.register("board/builder", ["parts/fence"], function (exports_33, context_33) {
+System.register("board/builder", ["parts/fence"], function (exports_34, context_34) {
     "use strict";
-    var __moduleName = context_33 && context_33.id;
+    var __moduleName = context_34 && context_34.id;
     var fence_6, BoardBuilder;
     return {
         setters: [
@@ -6730,13 +6840,13 @@ System.register("board/builder", ["parts/fence"], function (exports_33, context_
                     board.bulkUpdate = false;
                 }
             };
-            exports_33("BoardBuilder", BoardBuilder);
+            exports_34("BoardBuilder", BoardBuilder);
         }
     };
 });
-System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/config", "renderer", "board/serializer", "ui/animator", "board/builder"], function (exports_34, context_34) {
+System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/config", "renderer", "board/serializer", "ui/animator", "board/builder"], function (exports_35, context_35) {
     "use strict";
-    var __moduleName = context_34 && context_34.id;
+    var __moduleName = context_35 && context_35.id;
     var PIXI, board_2, button_2, config_5, renderer_11, serializer_1, animator_5, builder_1, Actionbar, BoardDrawer;
     return {
         setters: [
@@ -6975,7 +7085,7 @@ System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/conf
                     }
                 }
             };
-            exports_34("Actionbar", Actionbar);
+            exports_35("Actionbar", Actionbar);
             BoardDrawer = class BoardDrawer extends button_2.ButtonBar {
                 constructor(board) {
                     super();
@@ -7038,13 +7148,13 @@ System.register("ui/actionbar", ["pixi.js", "board/board", "ui/button", "ui/conf
                 }
                 updateToggled() { }
             };
-            exports_34("BoardDrawer", BoardDrawer);
+            exports_35("BoardDrawer", BoardDrawer);
         }
     };
 });
-System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar", "ui/actionbar", "renderer", "ui/animator", "ui/keyboard", "parts/gearbit"], function (exports_35, context_35) {
+System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar", "ui/actionbar", "renderer", "ui/animator", "ui/keyboard", "parts/gearbit"], function (exports_36, context_36) {
     "use strict";
-    var __moduleName = context_35 && context_35.id;
+    var __moduleName = context_36 && context_36.id;
     var PIXI, board_3, factory_2, toolbar_1, actionbar_1, renderer_12, animator_6, keyboard_2, gearbit_5, SimulatorApp;
     return {
         setters: [
@@ -7142,13 +7252,13 @@ System.register("app", ["pixi.js", "board/board", "parts/factory", "ui/toolbar",
                     };
                 }
             };
-            exports_35("SimulatorApp", SimulatorApp);
+            exports_36("SimulatorApp", SimulatorApp);
         }
     };
 });
-System.register("index", ["pixi.js", "app", "renderer", "board/builder", "board/serializer"], function (exports_36, context_36) {
+System.register("index", ["pixi.js", "app", "renderer", "board/builder", "board/serializer"], function (exports_37, context_37) {
     "use strict";
-    var __moduleName = context_36 && context_36.id;
+    var __moduleName = context_37 && context_37.id;
     var PIXI, app_1, renderer_13, builder_2, serializer_2, sim, container, resizeApp, loader;
     return {
         setters: [
